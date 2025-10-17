@@ -1,0 +1,9 @@
+Flask
+Flask-Cors
+pandas
+yfinance
+requests
+pandas-ta
+lxml
+openpyxl
+gunicorn
