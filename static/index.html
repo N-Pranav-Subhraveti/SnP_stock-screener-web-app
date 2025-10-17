@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Heikin-Ashi Pattern Stock Screener</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        html { scroll-behavior: smooth; }
+        body { font-family: 'Inter', sans-serif; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loader {
+            border: 4px solid rgba(0, 0, 0, .1);
+            border-left-color: #4f46e5;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8">
+        
+        <header class="text-center mb-8 md:mb-12">
+            <h1 class="text-4xl md:text-5xl font-bold text-gray-900">Heikin-Ashi Pattern Screener</h1>
+            <p class="text-gray-600 mt-2">Find stocks matching a specific candle pattern</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            <div class="lg:col-span-1 bg-white p-6 rounded-2xl shadow-lg border border-gray-200 h-fit">
+                <h2 class="text-2xl font-semibold mb-6 border-b pb-4">Screening Criteria</h2>
+                
+                <form id="screener-form" class="space-y-6">
+                    <div>
+                        <label for="index" class="block text-sm font-medium text-gray-700">Index</label>
+                        <select id="index" class="w-full mt-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 transition">
+                            <option value="S&P 100">S&P 100</option>
+                            <option value="S&P 500">S&P 500</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="timeframe" class="block text-sm font-medium text-gray-700">Timeframe</label>
+                        <select id="timeframe" class="w-full mt-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 transition">
+                            <option value="daily">Daily</option>
+                            <option value="weekly">Weekly</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="pattern" class="block text-sm font-medium text-gray-700">Candle Pattern</label>
+                        <input type="text" id="pattern" placeholder="e.g., RRGG" value="RRGG" class="w-full mt-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 transition">
+                        <p class="text-xs text-gray-500 mt-1">Enter a pattern from oldest to newest (e.g., GRG).</p>
+                    </div>
+                    <button type="submit" id="submit-button" class="w-full bg-indigo-600 text-white font-semibold py-3 px-4 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-300 ease-in-out transform hover:-translate-y-1 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <span>Run Screener</span>
+                    </button>
+                </form>
+            </div>
+            
+            <div class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-lg border border-gray-200">
+                <div class="flex justify-between items-center border-b pb-4 mb-4">
+                    <h2 class="text-2xl font-semibold">Matching Stocks</h2>
+                    <div id="scan-stats" class="text-sm text-gray-600 text-right"></div>
+                </div>
+                <div id="results-container" class="overflow-x-auto">
+                    <div id="loading" class="hidden flex-col items-center justify-center py-12"><div class="loader mb-4"></div><p class="text-gray-600">Scanning for stocks...</p></div>
+                    <div id="error-state" class="hidden text-center py-12"><h3>An Error Occurred</h3><p id="error-message" class="text-red-600"></p></div>
+                    <div id="empty-state" class="text-center py-12"><h3>No results yet</h3><p class="text-gray-500">Adjust criteria and run the screener.</p></div>
+                    <table id="results-table" class="min-w-full divide-y divide-gray-200 hidden">
+                        <thead class="bg-gray-50"><tr><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">#</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ticker</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Chart</th></tr></thead>
+                        <tbody id="results-tbody" class="bg-white divide-y divide-gray-200"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- TradingView Chart Section -->
+        <div id="chart-section" class="mt-8 bg-white p-6 rounded-2xl shadow-lg border border-gray-200 hidden">
+            <h2 id="chart-ticker-title" class="text-2xl font-semibold mb-4"></h2>
+            <div id="tradingview-widget-container" style="height: 500px;"></div>
+        </div>
+
+    </div>
+
+    <!-- TradingView Widget Script -->
+    <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+    <script>
+        const form = document.getElementById('screener-form');
+        const submitButton = document.getElementById('submit-button');
+        const resultsTable = document.getElementById('results-table');
+        const resultsTbody = document.getElementById('results-tbody');
+        const loadingDiv = document.getElementById('loading');
+        const emptyStateDiv = document.getElementById('empty-state');
+        const errorStateDiv = document.getElementById('error-state');
+        const errorMessageP = document.getElementById('error-message');
+        const scanStatsDiv = document.getElementById('scan-stats');
+        const chartSection = document.getElementById('chart-section');
+        const chartTickerTitle = document.getElementById('chart-ticker-title');
+        const widgetContainer = document.getElementById('tradingview-widget-container');
+
+        const API_BASE_URL = '';
+        let tradingViewWidget = null;
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            submitButton.disabled = true;
+            submitButton.querySelector('span').textContent = 'Scanning...';
+            loadingDiv.classList.remove('hidden');
+            loadingDiv.classList.add('flex');
+            [resultsTable, emptyStateDiv, errorStateDiv, chartSection].forEach(el => el.classList.add('hidden'));
+            scanStatsDiv.innerHTML = '';
+            resultsTbody.innerHTML = '';
+
+            try {
+                const response = await fetch(`/run-screener`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        index: document.getElementById('index').value,
+                        pattern: document.getElementById('pattern').value.trim().toUpperCase(),
+                        timeframe: document.getElementById('timeframe').value
+                    }),
+                });
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'A server error occurred.');
+                }
+                displayResults(await response.json());
+            } catch (error) {
+                showErrorState(error.message);
+            } finally {
+                submitButton.disabled = false;
+                submitButton.querySelector('span').textContent = 'Run Screener';
+                loadingDiv.classList.add('hidden');
+            }
+        });
+        
+        resultsTbody.addEventListener('click', function(e) {
+            if (e.target && e.target.classList.contains('view-chart-btn')) {
+                const ticker = e.target.dataset.ticker;
+                loadTradingViewChart(ticker);
+            }
+        });
+
+        function loadTradingViewChart(ticker) {
+            chartTickerTitle.textContent = `TradingView Chart: ${ticker}`;
+            widgetContainer.innerHTML = ''; // Clear previous widget
+            
+            tradingViewWidget = new TradingView.widget({
+                "autosize": true,
+                "symbol": ticker,
+                "interval": "D",
+                "timezone": "Etc/UTC",
+                "theme": "light",
+                "style": "1",
+                "locale": "en",
+                "toolbar_bg": "#f1f3f6",
+                "enable_publishing": false,
+                "allow_symbol_change": true,
+                "container_id": "tradingview-widget-container"
+            })
+            
+            chartSection.classList.remove('hidden');
+            chartSection.scrollIntoView();
+        }
+
+        function displayResults(data) {
+            const { matching_tickers, total_scanned, total_in_index, failed_tickers } = data;
+            
+            let statsHtml = `Scanned ${total_scanned} of ${total_in_index} stocks.`;
+            if (failed_tickers && failed_tickers.length > 0) {
+                statsHtml += `<br><span class="text-red-500">${failed_tickers.length} failed to load.</span>`;
+            }
+            scanStatsDiv.innerHTML = statsHtml;
+            
+            if (!matching_tickers || matching_tickers.length === 0) {
+                emptyStateDiv.classList.remove('hidden');
+                emptyStateDiv.querySelector('h3').textContent = "No stocks found";
+                emptyStateDiv.querySelector('p').textContent = "Your criteria did not match any stocks.";
+            } else {
+                matching_tickers.forEach((ticker, i) => {
+                    const row = resultsTbody.insertRow();
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${i + 1}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${ticker}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <button class="view-chart-btn text-indigo-600 hover:text-indigo-900" data-ticker="${ticker}">View Chart</button>
+                        </td>`;
+                });
+                resultsTable.classList.remove('hidden');
+            }
+        }
+
+        function showErrorState(message) {
+            errorMessageP.textContent = message || "An unknown error occurred.";
+            errorStateDiv.classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
+
