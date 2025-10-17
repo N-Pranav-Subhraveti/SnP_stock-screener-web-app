@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_from_directory # <-- ADD send_from_directory
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import pandas as pd
 import yfinance as yf
@@ -6,19 +6,19 @@ import requests
 import pandas_ta as ta
 import io
 
-app = Flask(__name__, static_folder='static') # <-- Point to the static folder
+# Initialize Flask App
+# We point to the 'static' folder where index.html resides
+app = Flask(__name__, static_folder='static')
 CORS(app)
 
-# --- NEW: Route to serve the frontend ---
+# --- Route to serve the frontend ---
 @app.route('/')
 def serve_index():
+    # This sends the index.html file from the 'static' folder
     return send_from_directory(app.static_folder, 'index.html')
-# --- END NEW ROUTE ---
 
-# --- Screener & Data Logic (No changes needed here) ---
-
+# --- Screener & Data Logic (Unchanged) ---
 def get_tickers(index_name="S&P 500"):
-    # ... (rest of your function is unchanged)
     wiki_pages = {
         "S&P 500": {'url': 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies', 'table_index': 0, 'ticker_col': 'Symbol'},
         "S&P 100": {'url': 'https://en.wikipedia.org/wiki/S%26P_100', 'table_index': 2, 'ticker_col': 'Symbol'}
@@ -81,17 +81,25 @@ def run_screener_logic(index_to_scan, pattern_str, timeframe):
     return {"matching_tickers": matching_tickers, "total_scanned": total_scanned, "total_in_index": len(tickers), "failed_tickers": failed_tickers}
 
 
+# --- API Endpoint ---
 @app.route('/run-screener', methods=['POST'])
 def handle_screener_request():
-    # ... (rest of your function is unchanged)
-    data = request.get_json()
-    index, pattern, timeframe = data.get('index'), data.get('pattern'), data.get('timeframe')
-    if not all([index, pattern, timeframe]):
-        return jsonify({"error": "Missing parameters."}), 400
-    print(f"Received request: Index={index}, Pattern={pattern}, Timeframe={timeframe}")
-    results = run_screener_logic(index, pattern, timeframe)
-    print(f"Found {len(results.get('matching_tickers', []))} matching tickers.")
-    return jsonify(results)
+    """API endpoint to run the screener with robust error handling."""
+    try:
+        data = request.get_json()
+        index, pattern, timeframe = data.get('index'), data.get('pattern'), data.get('timeframe')
+        if not all([index, pattern, timeframe]):
+            return jsonify({"error": "Missing parameters."}), 400
+        
+        print(f"Received request: Index={index}, Pattern={pattern}, Timeframe={timeframe}")
+        results = run_screener_logic(index, pattern, timeframe)
+        print(f"Found {len(results.get('matching_tickers', []))} matching tickers.")
+        return jsonify(results)
+
+    except Exception as e:
+        # This is the crucial part. If anything goes wrong, we send a JSON error.
+        print(f"[SERVER ERROR] An unexpected error occurred: {e}")
+        return jsonify({"error": "An internal server error occurred. The scan may have timed out. Please try again with the S&P 100."}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)

@@ -105,7 +105,6 @@
         const chartTickerTitle = document.getElementById('chart-ticker-title');
         const widgetContainer = document.getElementById('tradingview-widget-container');
 
-        const API_BASE_URL = '';
         let tradingViewWidget = null;
 
         form.addEventListener('submit', async (e) => {
@@ -129,13 +128,23 @@
                         timeframe: document.getElementById('timeframe').value
                     }),
                 });
+
+                // We now get the response text first to see if it's valid JSON
+                const responseText = await response.text();
+                const data = JSON.parse(responseText);
+                
                 if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || 'A server error occurred.');
+                    throw new Error(data.error || 'A server error occurred.');
                 }
-                displayResults(await response.json());
+                displayResults(data);
+
             } catch (error) {
-                showErrorState(error.message);
+                // This catch block handles both network errors and the JSON parsing error
+                let message = error.message;
+                if (error instanceof SyntaxError) {
+                    message = "The server returned an invalid response. This may be due to a timeout. Please try scanning the S&P 100 first.";
+                }
+                showErrorState(message);
             } finally {
                 submitButton.disabled = false;
                 submitButton.querySelector('span').textContent = 'Run Screener';
@@ -166,7 +175,7 @@
                 "enable_publishing": false,
                 "allow_symbol_change": true,
                 "container_id": "tradingview-widget-container"
-            })
+            });
             
             chartSection.classList.remove('hidden');
             chartSection.scrollIntoView();
@@ -206,4 +215,3 @@
     </script>
 </body>
 </html>
-
