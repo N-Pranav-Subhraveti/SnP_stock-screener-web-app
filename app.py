@@ -6,7 +6,7 @@ from curl_cffi import requests as curl_requests
 import pandas_ta as ta
 import io
 import numpy as np
-from concurrent.futures import ThreadPoolExecutor
+import time
 from typing import Dict, Any, Tuple, Optional, List
 
 # Initialize Flask App
@@ -42,10 +42,9 @@ def get_tickers(index_name: str = "S&P 500") -> List[str]:
         print(f"Error fetching {index_name} tickers: {e}")
         return []
 
-# --- Individual Strategy Checkers ---
+# --- Individual Strategy Checkers (No changes needed) ---
 def check_ma_crossover_signal(df: pd.DataFrame, params: Dict) -> Tuple[bool, Optional[Dict[str, Any]]]:
-    short_window = params.get('short_window', 50)
-    long_window = params.get('long_window', 200)
+    short_window, long_window = params.get('short_window', 50), params.get('long_window', 200)
     df[f'SMA{short_window}'] = df['Close'].rolling(window=short_window).mean()
     df[f'SMA{long_window}'] = df['Close'].rolling(window=long_window).mean()
     df.dropna(inplace=True)
@@ -56,19 +55,16 @@ def check_ma_crossover_signal(df: pd.DataFrame, params: Dict) -> Tuple[bool, Opt
     return False, None
 
 def check_rsi_signal(df: pd.DataFrame, params: Dict) -> Tuple[bool, Optional[Dict[str, Any]]]:
-    length = params.get('rsi_length', 14)
-    threshold = params.get('rsi_threshold', 30)
+    length, threshold = params.get('rsi_length', 14), params.get('rsi_threshold', 30)
     df.ta.rsi(length=length, append=True)
     df.dropna(inplace=True)
     if df.empty: return False, None
     last_rsi = df.iloc[-1][f'RSI_{length}']
-    if last_rsi < threshold:
-        return True, {"RSI": f"{last_rsi:.2f}"}
+    if last_rsi < threshold: return True, {"RSI": f"{last_rsi:.2f}"}
     return False, None
 
 def check_supertrend_signal(df: pd.DataFrame, params: Dict) -> Tuple[bool, Optional[Dict[str, Any]]]:
-    length = params.get('supertrend_length', 7)
-    multiplier = params.get('supertrend_multiplier', 3.0)
+    length, multiplier = params.get('supertrend_length', 7), params.get('supertrend_multiplier', 3.0)
     df.ta.supertrend(length=length, multiplier=multiplier, append=True)
     df.dropna(inplace=True)
     if df.empty or f'SUPERTd_{length}_{multiplier}' not in df.columns: return False, None
@@ -80,40 +76,36 @@ def filter_by_ha_pattern(df: pd.DataFrame, params: Dict) -> Tuple[bool, Optional
     pattern = params.get('pattern', 'RRGG')
     df.ta.ha(append=True)
     df.dropna(inplace=True)
-    num_candles = len(pattern)
-    if len(df) < num_candles: return False, None
-    latest_candles = df.iloc[-num_candles:]
-    for i in range(num_candles):
-        candle = latest_candles.iloc[i]
-        actual_color = 'G' if candle['HA_close'] > candle['HA_open'] else 'R'
+    if len(df) < len(pattern): return False, None
+    latest_candles = df.iloc[-len(pattern):]
+    for i in range(len(pattern)):
+        actual_color = 'G' if latest_candles.iloc[i]['HA_close'] > latest_candles.iloc[i]['HA_open'] else 'R'
         if actual_color != pattern[i].upper(): return False, None
     return True, {"Pattern": pattern}
 
 def check_uptrend_filter(df: pd.DataFrame, strategy_name: str) -> Tuple[bool, Dict[str, Any]]:
-    df['EMA_20'] = ta.ema(df['Close'], length=20)
-    df['EMA_50'] = ta.ema(df['Close'], length=50)
+    df['EMA_20'], df['EMA_50'] = ta.ema(df['Close'], length=20), ta.ema(df['Close'], length=50)
     df.ta.rsi(length=14, append=True)
-    df['Volume_Avg_20'] = df['Volume'].rolling(window=20).mean()
-    df['Volume_Ratio'] = df['Volume'] / df['Volume_Avg_20']
-    df['High_20'] = df['High'].rolling(window=20).max()
-    df['Price_vs_High_20'] = df['Close'] / df['High_20']
+    df['Volume_Ratio'] = df['Volume'] / df['Volume'].rolling(window=20).mean()
+    df['Price_vs_High_20'] = df['Close'] / df['High'].rolling(window=20).max()
     df.dropna(inplace=True)
     if df.empty: return False, {}
     last = df.iloc[-1]
     price, ema_20, ema_50, rsi = last['Close'], last['EMA_20'], last['EMA_50'], last['RSI_14']
     volume_ratio, price_vs_high = last['Volume_Ratio'], last['Price_vs_High_20']
     if strategy_name == 'rsi':
-        conditions = { 'price_above_ema20': price > ema_20 * 0.98, 'price_above_ema50': price > ema_50 * 0.97, 'rsi_reasonable': 30 <= rsi <= 75, 'volume_adequate': volume_ratio > 0.7 }
+        conditions = {'price_above_ema20': price > ema_20*0.98, 'price_above_ema50': price > ema_50*0.97, 'rsi_reasonable': 30<=rsi<=75, 'volume_adequate': volume_ratio>0.7}
         required_passes = 3
     elif strategy_name == 'ma_crossover':
-        conditions = { 'price_above_ema20': price > ema_20, 'price_above_ema50': price > ema_50, 'rsi_reasonable': 35 <= rsi <= 80, 'volume_adequate': volume_ratio > 0.6, 'near_highs': price_vs_high > 0.85 }
+        conditions = {'price_above_ema20': price > ema_20, 'price_above_ema50': price > ema_50, 'rsi_reasonable': 35<=rsi<=80, 'volume_adequate': volume_ratio>0.6, 'near_highs': price_vs_high>0.85}
         required_passes = 3
     elif strategy_name in ['ha_pattern', 'supertrend']:
-        conditions = { 'price_above_ema50': price > ema_50 * 0.95, 'rsi_not_extreme': rsi > 25, 'volume_adequate': volume_ratio > 0.5 }
+        conditions = {'price_above_ema50': price > ema_50*0.95, 'rsi_not_extreme': rsi>25, 'volume_adequate': volume_ratio>0.5}
         required_passes = 2
-    else:
-        conditions = { 'price_above_ema20': price > ema_20 * 0.98, 'price_above_ema50': price > ema_50, 'rsi_reasonable': 30 <= rsi <= 80, 'volume_adequate': volume_ratio > 0.6 }
+    else: # Default balanced approach
+        conditions = {'price_above_ema20': price > ema_20*0.98, 'price_above_ema50': price > ema_50, 'rsi_reasonable': 30<=rsi<=80, 'volume_adequate': volume_ratio > 0.6}
         required_passes = 3
+
     pass_count = sum(conditions.values())
     if pass_count >= required_passes:
         trend_strength = "Strong" if pass_count == len(conditions) else "Moderate"
@@ -147,7 +139,7 @@ def process_ticker_data(ticker: str, data: pd.DataFrame, strategy: str, params: 
         print(f"  -> Error processing {ticker}: {e}")
         return None
 
-# --- Main API Endpoint (Re-architected for Batch Processing) ---
+# --- Main API Endpoint (Re-architected for Extreme CPU/Memory Constraints) ---
 @app.route('/run-screener', methods=['POST'])
 def handle_screener_request():
     try:
@@ -162,8 +154,7 @@ def handle_screener_request():
         failed_tickers = []
         total_scanned = 0
         
-        # --- BATCH PROCESSING LOGIC ---
-        chunk_size = 75 
+        chunk_size = 50 
         ticker_chunks = [tickers[i:i + chunk_size] for i in range(0, len(tickers), chunk_size)]
 
         for i, chunk in enumerate(ticker_chunks):
@@ -171,15 +162,19 @@ def handle_screener_request():
             
             all_data = yf.download(chunk, period="2y", auto_adjust=True, session=session, progress=False, group_by='ticker')
             
-            with ThreadPoolExecutor(max_workers=5) as executor:
-                ticker_data_map = {t: all_data[t] for t in chunk if isinstance(all_data.get(t), pd.DataFrame) and not all_data.get(t).empty}
-                total_scanned += len(ticker_data_map)
-                failed_tickers.extend(list(set(chunk) - set(ticker_data_map.keys())))
+            # --- SINGLE-THREADED PROCESSING ---
+            # Replaced ThreadPoolExecutor with a simple loop for stability
+            ticker_data_map = {t: all_data[t] for t in chunk if isinstance(all_data.get(t), pd.DataFrame) and not all_data.get(t).empty}
+            total_scanned += len(ticker_data_map)
+            failed_tickers.extend(list(set(chunk) - set(ticker_data_map.keys())))
 
-                futures = [executor.submit(process_ticker_data, ticker, df, req_data.get('strategy'), params, req_data.get('timeframe'), req_data.get('applyUptrendFilter')) for ticker, df in ticker_data_map.items()]
-                for future in futures:
-                    result = future.result()
-                    if result: matching_stocks.append(result)
+            for ticker, df in ticker_data_map.items():
+                result = process_ticker_data(ticker, df, req_data.get('strategy'), params, req_data.get('timeframe'), req_data.get('applyUptrendFilter'))
+                if result:
+                    matching_stocks.append(result)
+            
+            # Strategic delay to give the server a break
+            time.sleep(1)
 
         print(f"Scan complete. Found {len(matching_stocks)} matching stocks.")
         return jsonify({
