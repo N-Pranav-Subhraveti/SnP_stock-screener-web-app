@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Heikin-Ashi Pattern Stock Screener</title>
+    <title>Advanced Stock Screener</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -22,6 +22,8 @@
         ::-webkit-scrollbar-track { background: #f1f5f9; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .explanation-card ul { list-style-position: inside; }
+        .explanation-card li { margin-bottom: 0.5rem; }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-800">
@@ -29,41 +31,56 @@
     <div class="container mx-auto p-4 md:p-8">
         
         <header class="text-center mb-8 md:mb-12">
-            <h1 class="text-4xl md:text-5xl font-bold text-gray-900">Heikin-Ashi Pattern Screener</h1>
-            <p class="text-gray-600 mt-2">Find stocks matching a specific candle pattern</p>
+            <h1 class="text-4xl md:text-5xl font-bold text-gray-900">Advanced Stock Screener</h1>
+            <p class="text-gray-600 mt-2">Find stocks using powerful, pre-built strategies</p>
         </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
             
-            <div class="lg:col-span-1 bg-white p-6 rounded-2xl shadow-lg border border-gray-200 h-fit">
-                <h2 class="text-2xl font-semibold mb-6 border-b pb-4">Screening Criteria</h2>
-                
-                <form id="screener-form" class="space-y-6">
-                    <div>
-                        <label for="index" class="block text-sm font-medium text-gray-700">Index</label>
-                        <select id="index" class="w-full mt-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 transition">
-                            <option value="S&P 100">S&P 100</option>
-                            <option value="S&P 500">S&P 500</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label for="timeframe" class="block text-sm font-medium text-gray-700">Timeframe</label>
-                        <select id="timeframe" class="w-full mt-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 transition">
-                            <option value="daily">Daily</option>
-                            <option value="weekly">Weekly</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label for="pattern" class="block text-sm font-medium text-gray-700">Candle Pattern</label>
-                        <input type="text" id="pattern" placeholder="e.g., RRGG" value="RRGG" class="w-full mt-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 transition">
-                        <p class="text-xs text-gray-500 mt-1">Enter a pattern from oldest to newest (e.g., GRG).</p>
-                    </div>
-                    <button type="submit" id="submit-button" class="w-full bg-indigo-600 text-white font-semibold py-3 px-4 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-300 ease-in-out transform hover:-translate-y-1 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                        <span>Run Screener</span>
-                    </button>
-                </form>
+            <!-- Left Column: Controls & Explanations -->
+            <div class="lg:col-span-1 space-y-8">
+                <!-- Screening Criteria Card -->
+                <div class="bg-white p-6 rounded-2xl shadow-lg border border-gray-200 h-fit">
+                    <h2 class="text-2xl font-semibold mb-6 border-b pb-4">Screening Criteria</h2>
+                    <form id="screener-form" class="space-y-6">
+                        <div>
+                            <label for="index" class="block text-sm font-medium text-gray-700">Index</label>
+                            <select id="index" class="w-full mt-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 transition">
+                                <option value="S&P 100">S&P 100</option>
+                                <option value="S&P 500">S&P 500</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="timeframe" class="block text-sm font-medium text-gray-700">Timeframe</label>
+                            <select id="timeframe" class="w-full mt-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 transition">
+                                <option value="daily">Daily</option>
+                                <option value="weekly">Weekly</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="strategy" class="block text-sm font-medium text-gray-700">Strategy</label>
+                            <select id="strategy" class="w-full mt-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 transition">
+                                <option value="Uptrend_Confirmation">Uptrend Confirmation</option>
+                                <option value="HA_Pattern">Heikin-Ashi Pattern</option>
+                            </select>
+                        </div>
+                        <div id="pattern-input-container" class="hidden">
+                            <label for="pattern" class="block text-sm font-medium text-gray-700">Candle Pattern</label>
+                            <input type="text" id="pattern" placeholder="e.g., RRGG" value="RRGG" class="w-full mt-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 transition">
+                        </div>
+                        <button type="submit" id="submit-button" class="w-full bg-indigo-600 text-white font-semibold py-3 px-4 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-300 ease-in-out transform hover:-translate-y-1 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <span>Run Screener</span>
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Explanation Card -->
+                <div id="explanation-card" class="bg-white p-6 rounded-2xl shadow-lg border border-gray-200 h-fit explanation-card">
+                    <!-- Content will be injected by JavaScript -->
+                </div>
             </div>
             
+            <!-- Right Column: Results -->
             <div class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-lg border border-gray-200">
                 <div class="flex justify-between items-center border-b pb-4 mb-4">
                     <h2 class="text-2xl font-semibold">Matching Stocks</h2>
@@ -74,7 +91,7 @@
                     <div id="error-state" class="hidden text-center py-12"><h3>An Error Occurred</h3><p id="error-message" class="text-red-600"></p></div>
                     <div id="empty-state" class="text-center py-12"><h3>No results yet</h3><p class="text-gray-500">Adjust criteria and run the screener.</p></div>
                     <table id="results-table" class="min-w-full divide-y divide-gray-200 hidden">
-                        <thead class="bg-gray-50"><tr><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">#</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ticker</th><th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Chart</th></tr></thead>
+                        <thead id="results-thead" class="bg-gray-50"></thead>
                         <tbody id="results-tbody" class="bg-white divide-y divide-gray-200"></tbody>
                     </table>
                 </div>
@@ -89,10 +106,15 @@
 
     </div>
 
-    <!-- TradingView Widget Script -->
     <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
     <script>
         const form = document.getElementById('screener-form');
+        const strategySelect = document.getElementById('strategy');
+        const patternInputContainer = document.getElementById('pattern-input-container');
+        const explanationCard = document.getElementById('explanation-card');
+        const resultsThead = document.getElementById('results-thead');
+        
+        // Other element selectors...
         const submitButton = document.getElementById('submit-button');
         const resultsTable = document.getElementById('results-table');
         const resultsTbody = document.getElementById('results-tbody');
@@ -105,7 +127,57 @@
         const chartTickerTitle = document.getElementById('chart-ticker-title');
         const widgetContainer = document.getElementById('tradingview-widget-container');
 
-        let tradingViewWidget = null;
+        const explanations = {
+            "Uptrend_Confirmation": {
+                title: "Strategy: Uptrend Confirmation",
+                description: "This filter finds stocks in a robust, confirmed uptrend. It is ideal for identifying fundamentally strong performers suitable for long-term investment.",
+                criteria: [
+                    "Price is above its 200-day average.",
+                    "50-day average is above the 200-day average.",
+                    "20-day average is above the 50-day average.",
+                    "Price is at least 30% above its 52-week low.",
+                    "Price is within 25% of its 52-week high."
+                ],
+                score: "A stock must meet at least 4 out of 5 criteria to be listed."
+            },
+            "HA_Pattern": {
+                title: "Strategy: Heikin-Ashi Pattern",
+                description: "This filter finds stocks based on a specific sequence of Heikin-Ashi candle colors. It's used to spot potential trend changes or continuations.",
+                criteria_title: "How to use:",
+                criteria: [
+                    "Enter a pattern of 'G' for Green (up) and 'R' for Red (down) candles.",
+                    "The pattern is read from oldest to newest candle.",
+                    "<b>Example:</b> 'RRGG' looks for two red candles followed by two green candles, signaling a potential reversal to an uptrend."
+                ]
+            }
+        };
+
+        function updateExplanation() {
+            const selectedStrategy = strategySelect.value;
+            const content = explanations[selectedStrategy];
+            
+            let criteriaHtml = '';
+            if (content.criteria) {
+                criteriaHtml = `
+                    <h4 class="font-semibold mt-4 mb-2">${content.criteria_title || 'Filter Criteria:'}</h4>
+                    <ul class="text-sm text-gray-600 list-disc space-y-1">
+                        ${content.criteria.map(item => `<li>${item}</li>`).join('')}
+                    </ul>`;
+            }
+            let scoreHtml = content.score ? `<p class="text-sm text-gray-600 mt-4"><b>Trend Score:</b> ${content.score}</p>` : '';
+
+            explanationCard.innerHTML = `
+                <h3 class="text-xl font-semibold mb-2">${content.title}</h3>
+                <p class="text-sm text-gray-600">${content.description}</p>
+                ${criteriaHtml}
+                ${scoreHtml}
+            `;
+        }
+
+        strategySelect.addEventListener('change', () => {
+            patternInputContainer.classList.toggle('hidden', strategySelect.value !== 'HA_Pattern');
+            updateExplanation();
+        });
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -124,22 +196,20 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         index: document.getElementById('index').value,
-                        pattern: document.getElementById('pattern').value.trim().toUpperCase(),
+                        strategy: strategySelect.value,
+                        pattern: document.getElementById('pattern').value,
                         timeframe: document.getElementById('timeframe').value
                     }),
                 });
 
-                // We now get the response text first to see if it's valid JSON
                 const responseText = await response.text();
                 const data = JSON.parse(responseText);
                 
-                if (!response.ok) {
-                    throw new Error(data.error || 'A server error occurred.');
-                }
+                if (!response.ok) throw new Error(data.error || 'A server error occurred.');
+                
                 displayResults(data);
 
             } catch (error) {
-                // This catch block handles both network errors and the JSON parsing error
                 let message = error.message;
                 if (error instanceof SyntaxError) {
                     message = "The server returned an invalid response. This may be due to a timeout. Please try scanning the S&P 100 first.";
@@ -152,66 +222,80 @@
             }
         });
         
-        resultsTbody.addEventListener('click', function(e) {
+        resultsTbody.addEventListener('click', (e) => {
             if (e.target && e.target.classList.contains('view-chart-btn')) {
-                const ticker = e.target.dataset.ticker;
-                loadTradingViewChart(ticker);
+                loadTradingViewChart(e.target.dataset.ticker);
             }
         });
 
-        function loadTradingViewChart(ticker) {
-            chartTickerTitle.textContent = `TradingView Chart: ${ticker}`;
-            widgetContainer.innerHTML = ''; // Clear previous widget
-            
-            tradingViewWidget = new TradingView.widget({
-                "autosize": true,
-                "symbol": ticker,
-                "interval": "D",
-                "timezone": "Etc/UTC",
-                "theme": "light",
-                "style": "1",
-                "locale": "en",
-                "toolbar_bg": "#f1f3f6",
-                "enable_publishing": false,
-                "allow_symbol_change": true,
-                "container_id": "tradingview-widget-container"
-            });
-            
-            chartSection.classList.remove('hidden');
-            chartSection.scrollIntoView();
-        }
-
         function displayResults(data) {
-            const { matching_tickers, total_scanned, total_in_index, failed_tickers } = data;
+            const { matching_stocks, total_scanned, total_in_index, failed_tickers } = data;
             
             let statsHtml = `Scanned ${total_scanned} of ${total_in_index} stocks.`;
             if (failed_tickers && failed_tickers.length > 0) {
-                statsHtml += `<br><span class="text-red-500">${failed_tickers.length} failed to load.</span>`;
+                statsHtml += `<br><span class="text-red-500">${failed_tickers.length} failed.</span>`;
             }
             scanStatsDiv.innerHTML = statsHtml;
+
+            updateTableHeaders(strategySelect.value);
             
-            if (!matching_tickers || matching_tickers.length === 0) {
+            if (!matching_stocks || matching_stocks.length === 0) {
                 emptyStateDiv.classList.remove('hidden');
                 emptyStateDiv.querySelector('h3').textContent = "No stocks found";
                 emptyStateDiv.querySelector('p').textContent = "Your criteria did not match any stocks.";
             } else {
-                matching_tickers.forEach((ticker, i) => {
+                matching_stocks.forEach((stock) => {
                     const row = resultsTbody.insertRow();
-                    row.innerHTML = `
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${i + 1}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${ticker}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <button class="view-chart-btn text-indigo-600 hover:text-indigo-900" data-ticker="${ticker}">View Chart</button>
-                        </td>`;
+                    if (strategySelect.value === 'Uptrend_Confirmation') {
+                        row.innerHTML = `
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${stock.Ticker}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${stock.Close}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${stock['52_Week_High']}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${stock['52_Week_Low']}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${stock.Trend_Score}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${stock.Trend_Strength}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium"><button class="view-chart-btn text-indigo-600 hover:text-indigo-900" data-ticker="${stock.Ticker}">View</button></td>`;
+                    } else { // HA_Pattern
+                        row.innerHTML = `
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${stock.Ticker}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${stock.Close}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium"><button class="view-chart-btn text-indigo-600 hover:text-indigo-900" data-ticker="${stock.Ticker}">View Chart</button></td>`;
+                    }
                 });
                 resultsTable.classList.remove('hidden');
             }
+        }
+        
+        function updateTableHeaders(strategy) {
+            let headers = [];
+            if (strategy === 'Uptrend_Confirmation') {
+                headers = ['Ticker', 'Close', '52W High', '52W Low', 'Score', 'Strength', 'Chart'];
+            } else {
+                headers = ['Ticker', 'Close', 'Chart'];
+            }
+            resultsThead.innerHTML = `<tr>${headers.map(h => `<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">${h}</th>`).join('')}</tr>`;
+        }
+
+        function loadTradingViewChart(ticker) {
+            chartTickerTitle.textContent = `TradingView Chart: ${ticker}`;
+            widgetContainer.innerHTML = '';
+            new TradingView.widget({
+                "autosize": true, "symbol": ticker, "interval": "D", "timezone": "Etc/UTC", "theme": "light", "style": "1", "locale": "en", "toolbar_bg": "#f1f3f6", "enable_publishing": false, "allow_symbol_change": true, "container_id": "tradingview-widget-container"
+            });
+            chartSection.classList.remove('hidden');
+            chartSection.scrollIntoView();
         }
 
         function showErrorState(message) {
             errorMessageP.textContent = message || "An unknown error occurred.";
             errorStateDiv.classList.remove('hidden');
         }
+
+        // Initial setup
+        document.addEventListener('DOMContentLoaded', () => {
+            updateExplanation();
+        });
     </script>
 </body>
 </html>
+
