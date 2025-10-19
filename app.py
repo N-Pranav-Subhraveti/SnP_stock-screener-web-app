@@ -23,18 +23,29 @@ def serve_index():
 
 def get_tickers(index_name: str = "S&P 500") -> List[str]:
     """Fetches list of tickers from Wikipedia."""
+    # --- THIS IS THE FIX ---
+    # The logic is updated to be more robust. Instead of relying on a fragile
+    # table index, it now actively searches for the table containing the
+    # ticker column. This is less likely to break when Wikipedia updates its layout.
     wiki_pages = {
-        "S&P 500": {'url': 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies', 'table_index': 0, 'ticker_col': 'Symbol'},
-        "S&P 100": {'url': 'https://en.wikipedia.org/wiki/S%26P_100', 'table_index': 2, 'ticker_col': 'Symbol'}
+        "S&P 500": {'url': 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies', 'ticker_col': 'Symbol'},
+        "S&P 100": {'url': 'https://en.wikipedia.org/wiki/S%26P_100', 'ticker_col': 'Ticker symbol'}
     }
+    # --- END FIX ---
     if index_name not in wiki_pages: return []
     try:
         page_info = wiki_pages[index_name]
         headers = {'User-Agent': 'Mozilla/5.0'}
         response = requests.get(page_info['url'], headers=headers)
         response.raise_for_status()
-        tables = pd.read_html(io.StringIO(response.text))
-        index_table = tables[page_info['table_index']]
+        
+        # Use the 'match' parameter to find the table by its content, not its position.
+        tables = pd.read_html(io.StringIO(response.text), match=page_info['ticker_col'])
+        if not tables:
+            raise ValueError(f"Could not find the ticker table on the Wikipedia page for {index_name}.")
+            
+        index_table = tables[0]
+        
         if isinstance(index_table.columns, pd.MultiIndex):
             index_table.columns = index_table.columns.get_level_values(0)
         return index_table[page_info['ticker_col']].str.replace('.', '-', regex=False).tolist()
@@ -158,10 +169,7 @@ def process_ticker_data(ticker: str, data: pd.DataFrame, strategy: str, params: 
         
         if strategy not in strategy_funcs: return None
         
-        # --- THIS IS THE FIX ---
-        # Removed the `**` before `params` to pass it as a single dictionary.
         is_signal, signal_data = strategy_funcs[strategy](data.copy(), params)
-        # --- END FIX ---
 
         if not is_signal: return None
 
