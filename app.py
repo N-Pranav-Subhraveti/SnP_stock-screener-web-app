@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import pandas as pd
 import yfinance as yf
-from curl_cffi import requests as curl_requests # Use curl_cffi's requests
+from curl_cffi import requests as curl_requests
 import pandas_ta as ta
 import io
 import numpy as np
@@ -12,9 +12,7 @@ from typing import Dict, Any, Tuple, Optional, List
 # Initialize Flask App
 app = Flask(__name__, static_folder='static')
 CORS(app)
-# Create a session that impersonates a real browser to avoid being blocked.
 session = curl_requests.Session(impersonate="chrome110")
-
 
 # --- Route to serve the frontend ---
 @app.route('/')
@@ -23,7 +21,6 @@ def serve_index():
 
 # --- Helper & Data Logic ---
 def get_tickers(index_name: str = "S&P 500") -> List[str]:
-    """Fetches list of tickers from Wikipedia robustly."""
     wiki_pages = {
         "S&P 500": {'url': 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies', 'ticker_col': 'Symbol'},
         "S&P 100": {'url': 'https://en.wikipedia.org/wiki/S%26P_100', 'ticker_col': 'Ticker symbol'}
@@ -34,14 +31,10 @@ def get_tickers(index_name: str = "S&P 500") -> List[str]:
         headers = {'User-Agent': 'Mozilla/5.0'}
         response = session.get(page_info['url'], headers=headers)
         response.raise_for_status()
-        
-        # Robustly find table by looking for the ticker column header
         tables = pd.read_html(io.StringIO(response.text), match=page_info['ticker_col'])
         if not tables:
-            raise ValueError(f"Could not find the ticker table on the Wikipedia page for {index_name}.")
-            
+            raise ValueError(f"Could not find ticker table for {index_name}.")
         index_table = tables[0]
-        
         if isinstance(index_table.columns, pd.MultiIndex):
             index_table.columns = index_table.columns.get_level_values(0)
         return index_table[page_info['ticker_col']].str.replace('.', '-', regex=False).tolist()
@@ -154,33 +147,51 @@ def process_ticker_data(ticker: str, data: pd.DataFrame, strategy: str, params: 
         print(f"  -> Error processing {ticker}: {e}")
         return None
 
-# --- Main API Endpoint ---
+# --- Main API Endpoint (Re-architected for Batch Processing) ---
 @app.route('/run-screener', methods=['POST'])
 def handle_screener_request():
     try:
         req_data = request.get_json()
         params = req_data.get('params', {})
-        print(f"Request: {req_data.get('index')}, {req_data.get('strategy')}, Params: {params}, Uptrend Filter: {req_data.get('applyUptrendFilter')}")
+        print(f"Request: {req_data.get('index')}, {req_data.get('strategy')}, Params: {params}, Uptrend: {req_data.get('applyUptrendFilter')}")
         
         tickers = get_tickers(req_data.get('index'))
         if not tickers: return jsonify({"error": f"Could not fetch tickers for {req_data.get('index')}."}), 500
 
-        all_data = yf.download(tickers, period="2y", auto_adjust=True, session=session, progress=False, group_by='ticker')
-        
         matching_stocks = []
-        with ThreadPoolExecutor(max_workers=5) as executor:
-            ticker_data_map = {t: all_data[t] for t in tickers if isinstance(all_data.get(t), pd.DataFrame) and not all_data.get(t).empty}
-            futures = [executor.submit(process_ticker_data, ticker, df, req_data.get('strategy'), params, req_data.get('timeframe'), req_data.get('applyUptrendFilter')) for ticker, df in ticker_data_map.items()]
-            for future in futures:
-                result = future.result()
-                if result: matching_stocks.append(result)
+        failed_tickers = []
+        total_scanned = 0
+        
+        # --- BATCH PROCESSING LOGIC ---
+        chunk_size = 75 
+        ticker_chunks = [tickers[i:i + chunk_size] for i in range(0, len(tickers), chunk_size)]
 
-        total_in_index, failed = len(tickers), list(set(tickers) - set(ticker_data_map.keys()))
+        for i, chunk in enumerate(ticker_chunks):
+            print(f"Processing chunk {i+1}/{len(ticker_chunks)} ({len(chunk)} tickers)...")
+            
+            all_data = yf.download(chunk, period="2y", auto_adjust=True, session=session, progress=False, group_by='ticker')
+            
+            with ThreadPoolExecutor(max_workers=5) as executor:
+                ticker_data_map = {t: all_data[t] for t in chunk if isinstance(all_data.get(t), pd.DataFrame) and not all_data.get(t).empty}
+                total_scanned += len(ticker_data_map)
+                failed_tickers.extend(list(set(chunk) - set(ticker_data_map.keys())))
+
+                futures = [executor.submit(process_ticker_data, ticker, df, req_data.get('strategy'), params, req_data.get('timeframe'), req_data.get('applyUptrendFilter')) for ticker, df in ticker_data_map.items()]
+                for future in futures:
+                    result = future.result()
+                    if result: matching_stocks.append(result)
+
         print(f"Scan complete. Found {len(matching_stocks)} matching stocks.")
-        return jsonify({"matching_stocks": matching_stocks, "total_scanned": len(ticker_data_map), "total_in_index": total_in_index, "failed_tickers": failed})
+        return jsonify({
+            "matching_stocks": matching_stocks,
+            "total_scanned": total_scanned,
+            "total_in_index": len(tickers),
+            "failed_tickers": failed_tickers
+        })
+
     except Exception as e:
         print(f"[SERVER ERROR] An unexpected error occurred: {e}")
-        return jsonify({"error": "An internal server error. This can happen if a data source is temporarily unavailable. Please try again."}), 500
+        return jsonify({"error": "An internal server error. This can happen if a data source is temporarily unavailable."}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
