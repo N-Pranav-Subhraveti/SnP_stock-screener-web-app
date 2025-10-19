@@ -6,4 +6,6 @@ requests
 pandas-ta
 lxml
 openpyxl
+html5lib
+beautifulsoup4
 gunicorn
