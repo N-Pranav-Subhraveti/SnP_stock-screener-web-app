@@ -57,7 +57,6 @@ def check_ma_crossover_signal(df: pd.DataFrame, params: Dict) -> Tuple[bool, Opt
     last = df.iloc[-1]
     prev = df.iloc[-2]
 
-    # Bullish Crossover: Previously below, now above
     if prev[f'SMA{short_window}'] < prev[f'SMA{long_window}'] and last[f'SMA{short_window}'] > last[f'SMA{long_window}']:
         return True, {f"SMA{short_window}": f"{last[f'SMA{short_window}']:.2f}", f"SMA{long_window}": f"{last[f'SMA{long_window}']:.2f}"}
     return False, None
@@ -104,12 +103,8 @@ def filter_by_ha_pattern(df: pd.DataFrame, params: Dict) -> Tuple[bool, Optional
         if actual_color != pattern[i].upper(): return False, None
     return True, {"Pattern": pattern}
 
-# --- NEW ADAPTIVE UPTREND FILTER ---
+# --- ADAPTIVE UPTREND FILTER ---
 def check_uptrend_filter(df: pd.DataFrame, strategy_name: str) -> Tuple[bool, Dict[str, Any]]:
-    """
-    Adaptive trend filter that uses different criteria based on the signal strategy.
-    """
-    # Pre-calculate all necessary indicators
     df['EMA_20'] = ta.ema(df['Close'], length=20)
     df['EMA_50'] = ta.ema(df['Close'], length=50)
     df.ta.rsi(length=14, append=True)
@@ -119,38 +114,23 @@ def check_uptrend_filter(df: pd.DataFrame, strategy_name: str) -> Tuple[bool, Di
     df['Price_vs_High_20'] = df['Close'] / df['High_20']
     df.dropna(inplace=True)
 
-    if df.empty:
-        return False, {}
+    if df.empty: return False, {}
     
     last = df.iloc[-1]
     price, ema_20, ema_50, rsi = last['Close'], last['EMA_20'], last['EMA_50'], last['RSI_14']
     volume_ratio, price_vs_high = last['Volume_Ratio'], last['Price_vs_High_20']
 
-    # Strategy-specific condition sets
     if strategy_name == 'rsi':
-        conditions = {
-            'price_above_ema20': price > ema_20 * 0.98, 'price_above_ema50': price > ema_50 * 0.97,
-            'rsi_reasonable': 30 <= rsi <= 75, 'volume_adequate': volume_ratio > 0.7
-        }
+        conditions = { 'price_above_ema20': price > ema_20 * 0.98, 'price_above_ema50': price > ema_50 * 0.97, 'rsi_reasonable': 30 <= rsi <= 75, 'volume_adequate': volume_ratio > 0.7 }
         required_passes = 3
     elif strategy_name == 'ma_crossover':
-        conditions = {
-            'price_above_ema20': price > ema_20, 'price_above_ema50': price > ema_50,
-            'rsi_reasonable': 35 <= rsi <= 80, 'volume_adequate': volume_ratio > 0.6,
-            'near_highs': price_vs_high > 0.85
-        }
+        conditions = { 'price_above_ema20': price > ema_20, 'price_above_ema50': price > ema_50, 'rsi_reasonable': 35 <= rsi <= 80, 'volume_adequate': volume_ratio > 0.6, 'near_highs': price_vs_high > 0.85 }
         required_passes = 3
     elif strategy_name in ['ha_pattern', 'supertrend']:
-        conditions = {
-            'price_above_ema50': price > ema_50 * 0.95, 'rsi_not_extreme': rsi > 25,
-            'volume_adequate': volume_ratio > 0.5
-        }
+        conditions = { 'price_above_ema50': price > ema_50 * 0.95, 'rsi_not_extreme': rsi > 25, 'volume_adequate': volume_ratio > 0.5 }
         required_passes = 2
-    else: # Default balanced approach
-        conditions = {
-            'price_above_ema20': price > ema_20 * 0.98, 'price_above_ema50': price > ema_50,
-            'rsi_reasonable': 30 <= rsi <= 80, 'volume_adequate': volume_ratio > 0.6
-        }
+    else:
+        conditions = { 'price_above_ema20': price > ema_20 * 0.98, 'price_above_ema50': price > ema_50, 'rsi_reasonable': 30 <= rsi <= 80, 'volume_adequate': volume_ratio > 0.6 }
         required_passes = 3
 
     pass_count = sum(conditions.values())
@@ -164,7 +144,7 @@ def check_uptrend_filter(df: pd.DataFrame, strategy_name: str) -> Tuple[bool, Di
 # --- Core Data Processor ---
 def process_ticker_data(ticker: str, data: pd.DataFrame, strategy: str, params: Dict, timeframe: str, apply_uptrend_filter: bool) -> Optional[Dict[str, Any]]:
     try:
-        if data.empty or len(data) < 52: return None # Need at least 52 periods for weekly calcs
+        if data.empty or len(data) < 52: return None
 
         if timeframe == 'weekly':
             if not isinstance(data.index, pd.DatetimeIndex): data.index = pd.to_datetime(data.index)
@@ -177,7 +157,12 @@ def process_ticker_data(ticker: str, data: pd.DataFrame, strategy: str, params: 
         }
         
         if strategy not in strategy_funcs: return None
+        
+        # --- THIS IS THE FIX ---
+        # Removed the `**` before `params` to pass it as a single dictionary.
         is_signal, signal_data = strategy_funcs[strategy](data.copy(), params)
+        # --- END FIX ---
+
         if not is_signal: return None
 
         uptrend_data = {}
