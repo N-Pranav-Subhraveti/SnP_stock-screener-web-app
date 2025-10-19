@@ -24,6 +24,9 @@
         ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         .explanation-card ul { list-style-position: inside; }
         .explanation-card li { margin-bottom: 0.5rem; }
+        .form-checkbox:checked { background-color: #4f46e5; border-color: #4f46e5; }
+        .param-group { display: none; }
+        .param-group.active { display: block; }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-800">
@@ -32,14 +35,13 @@
         
         <header class="text-center mb-8 md:mb-12">
             <h1 class="text-4xl md:text-5xl font-bold text-gray-900">Advanced Stock Screener</h1>
-            <p class="text-gray-600 mt-2">Find stocks using powerful, pre-built strategies</p>
+            <p class="text-gray-600 mt-2">Find trade signals with custom parameters and trend validation</p>
         </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
             
-            <!-- Left Column: Controls & Explanations -->
-            <div class="lg:col-span-1 space-y-8">
-                <!-- Screening Criteria Card -->
+            <div class="lg-col-span-1 space-y-8">
+                <!-- Screening Criteria -->
                 <div class="bg-white p-6 rounded-2xl shadow-lg border border-gray-200 h-fit">
                     <h2 class="text-2xl font-semibold mb-6 border-b pb-4">Screening Criteria</h2>
                     <form id="screener-form" class="space-y-6">
@@ -58,38 +60,72 @@
                             </select>
                         </div>
                         <div>
-                            <label for="strategy" class="block text-sm font-medium text-gray-700">Strategy</label>
+                            <label for="strategy" class="block text-sm font-medium text-gray-700">Signal Strategy</label>
                             <select id="strategy" class="w-full mt-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 transition">
-                                <option value="Uptrend_Confirmation">Uptrend Confirmation</option>
-                                <option value="HA_Pattern">Heikin-Ashi Pattern</option>
+                                <option value="ma_crossover">MA Crossover</option>
+                                <option value="rsi">RSI Oversold</option>
+                                <option value="supertrend">Supertrend Signal</option>
+                                <option value="ha_pattern">Heikin-Ashi Pattern</option>
                             </select>
                         </div>
-                        <div id="pattern-input-container" class="hidden">
-                            <label for="pattern" class="block text-sm font-medium text-gray-700">Candle Pattern</label>
-                            <input type="text" id="pattern" placeholder="e.g., RRGG" value="RRGG" class="w-full mt-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 transition">
+
+                        <!-- Dynamic Strategy Parameters -->
+                        <div id="strategy-params-container" class="space-y-4 border-t pt-4">
+                            <h3 class="text-md font-medium text-gray-700">Strategy Parameters</h3>
+                            <div id="ma_crossover-params" class="param-group space-y-2">
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div><label class="text-xs">Short Window</label><input type="number" id="ma-short" value="50" class="w-full p-2 border rounded-md"></div>
+                                    <div><label class="text-xs">Long Window</label><input type="number" id="ma-long" value="200" class="w-full p-2 border rounded-md"></div>
+                                </div>
+                            </div>
+                            <div id="rsi-params" class="param-group space-y-2">
+                                <div class="grid grid-cols-2 gap-2">
+                                     <div><label class="text-xs">RSI Length</label><input type="number" id="rsi-length" value="14" class="w-full p-2 border rounded-md"></div>
+                                     <div><label class="text-xs">Oversold Level</label><input type="number" id="rsi-threshold" value="30" class="w-full p-2 border rounded-md"></div>
+                                </div>
+                            </div>
+                            <div id="supertrend-params" class="param-group space-y-2">
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div><label class="text-xs">Length</label><input type="number" id="supertrend-length" value="7" class="w-full p-2 border rounded-md"></div>
+                                    <div><label class="text-xs">Multiplier</label><input type="number" id="supertrend-multiplier" step="0.1" value="3.0" class="w-full p-2 border rounded-md"></div>
+                                </div>
+                            </div>
+                            <div id="ha_pattern-params" class="param-group">
+                                <label class="text-xs">Candle Pattern</label>
+                                <input type="text" id="pattern" placeholder="e.g., RRGG" value="RRGG" class="w-full mt-1 p-2 border rounded-md">
+                            </div>
                         </div>
-                        <button type="submit" id="submit-button" class="w-full bg-indigo-600 text-white font-semibold py-3 px-4 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-300 ease-in-out transform hover:-translate-y-1 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                        
+                        <div class="flex items-center border-t pt-4">
+                            <input id="uptrend-filter" type="checkbox" class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 form-checkbox">
+                            <label for="uptrend-filter" class="ml-2 block text-sm text-gray-900">Apply Adaptive Trend Filter</label>
+                        </div>
+                        
+                        <button type="submit" id="submit-button" class="w-full bg-indigo-600 text-white font-semibold py-3 px-4 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition flex items-center justify-center">
                             <span>Run Screener</span>
                         </button>
                     </form>
                 </div>
 
-                <!-- Explanation Card -->
-                <div id="explanation-card" class="bg-white p-6 rounded-2xl shadow-lg border border-gray-200 h-fit explanation-card">
-                    <!-- Content will be injected by JavaScript -->
+                <!-- Strategy Explanation Card -->
+                <div id="explanation-card" class="bg-white p-6 rounded-2xl shadow-lg border border-gray-200 h-fit explanation-card"></div>
+                
+                <!-- Uptrend Filter Explanation Card (Now Dynamic) -->
+                <div id="uptrend-explanation-card" class="bg-white p-6 rounded-2xl shadow-lg border border-gray-200 h-fit explanation-card">
+                    <!-- Content will be generated by JavaScript -->
                 </div>
             </div>
             
-            <!-- Right Column: Results -->
+            <!-- Results Column -->
             <div class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-lg border border-gray-200">
                 <div class="flex justify-between items-center border-b pb-4 mb-4">
                     <h2 class="text-2xl font-semibold">Matching Stocks</h2>
                     <div id="scan-stats" class="text-sm text-gray-600 text-right"></div>
                 </div>
                 <div id="results-container" class="overflow-x-auto">
-                    <div id="loading" class="hidden flex-col items-center justify-center py-12"><div class="loader mb-4"></div><p class="text-gray-600">Scanning for stocks...</p></div>
+                    <div id="loading" class="hidden flex-col items-center justify-center py-12"><div class="loader mb-4"></div><p>Scanning...</p></div>
                     <div id="error-state" class="hidden text-center py-12"><h3>An Error Occurred</h3><p id="error-message" class="text-red-600"></p></div>
-                    <div id="empty-state" class="text-center py-12"><h3>No results yet</h3><p class="text-gray-500">Adjust criteria and run the screener.</p></div>
+                    <div id="empty-state" class="text-center py-12"><h3>No results yet</h3><p>Adjust criteria and run the screener.</p></div>
                     <table id="results-table" class="min-w-full divide-y divide-gray-200 hidden">
                         <thead id="results-thead" class="bg-gray-50"></thead>
                         <tbody id="results-tbody" class="bg-white divide-y divide-gray-200"></tbody>
@@ -103,85 +139,97 @@
             <h2 id="chart-ticker-title" class="text-2xl font-semibold mb-4"></h2>
             <div id="tradingview-widget-container" style="height: 500px;"></div>
         </div>
-
     </div>
 
     <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
     <script>
+        // DOM Elements
         const form = document.getElementById('screener-form');
         const strategySelect = document.getElementById('strategy');
-        const patternInputContainer = document.getElementById('pattern-input-container');
         const explanationCard = document.getElementById('explanation-card');
-        const resultsThead = document.getElementById('results-thead');
-        
-        // Other element selectors...
-        const submitButton = document.getElementById('submit-button');
-        const resultsTable = document.getElementById('results-table');
+        const uptrendExplanationCard = document.getElementById('uptrend-explanation-card');
         const resultsTbody = document.getElementById('results-tbody');
+        const submitButton = document.getElementById('submit-button');
         const loadingDiv = document.getElementById('loading');
-        const emptyStateDiv = document.getElementById('empty-state');
         const errorStateDiv = document.getElementById('error-state');
-        const errorMessageP = document.getElementById('error-message');
+        const emptyStateDiv = document.getElementById('empty-state');
+        const resultsTable = document.getElementById('results-table');
         const scanStatsDiv = document.getElementById('scan-stats');
         const chartSection = document.getElementById('chart-section');
-        const chartTickerTitle = document.getElementById('chart-ticker-title');
-        const widgetContainer = document.getElementById('tradingview-widget-container');
 
         const explanations = {
-            "Uptrend_Confirmation": {
-                title: "Strategy: Uptrend Confirmation",
-                description: "This filter finds stocks in a robust, confirmed uptrend. It is ideal for identifying fundamentally strong performers suitable for long-term investment.",
+            'ma_crossover': { title: "Strategy: MA Crossover", description: "Finds stocks where a shorter-term Simple Moving Average (SMA) has recently crossed above a longer-term SMA. A classic bullish signal." },
+            'rsi': { title: "Strategy: RSI Oversold", description: "Finds stocks with a Relative Strength Index (RSI) below a specified threshold, indicating the stock may be oversold and due for a bounce." },
+            'supertrend': { title: "Strategy: Supertrend Signal", description: "Finds stocks that have a bullish Supertrend signal, suggesting the stock is in a confirmed uptrend according to this indicator." },
+            'ha_pattern': { title: "Strategy: Heikin-Ashi Pattern", description: "Finds stocks matching a specific sequence of 'G' (green) and 'R' (red) Heikin-Ashi candles." }
+        };
+
+        const adaptiveFilterExplanations = {
+            'ma_crossover': {
+                implication: "This is a trend-following signal, so the filter is <strong>strict</strong>. It ensures the crossover is happening within an already established, healthy uptrend.",
                 criteria: [
-                    "Price is above its 200-day average.",
-                    "50-day average is above the 200-day average.",
-                    "20-day average is above the 50-day average.",
-                    "Price is at least 30% above its 52-week low.",
-                    "Price is within 25% of its 52-week high."
+                    "Price > 20-period EMA",
+                    "Price > 50-period EMA",
+                    "RSI is between 35 and 80",
+                    "Volume is > 60% of its 20-period average",
+                    "Price is > 85% of its 20-period high"
                 ],
-                score: "A stock must meet at least 4 out of 5 criteria to be listed."
+                requirement: "At least <strong>3 of 5</strong> conditions must be met."
             },
-            "HA_Pattern": {
-                title: "Strategy: Heikin-Ashi Pattern",
-                description: "This filter finds stocks based on a specific sequence of Heikin-Ashi candle colors. It's used to spot potential trend changes or continuations.",
-                criteria_title: "How to use:",
+            'rsi': {
+                implication: "This is a momentum/reversal signal, so the filter is more <strong>flexible</strong>. It looks for signs of recovery, even if the trend isn't perfect yet.",
                 criteria: [
-                    "Enter a pattern of 'G' for Green (up) and 'R' for Red (down) candles.",
-                    "The pattern is read from oldest to newest candle.",
-                    "<b>Example:</b> 'RRGG' looks for two red candles followed by two green candles, signaling a potential reversal to an uptrend."
-                ]
+                    "Price > 20-period EMA (with 2% tolerance)",
+                    "Price > 50-period EMA (with 3% tolerance)",
+                    "RSI is between 30 and 75",
+                    "Volume is > 70% of its 20-period average"
+                ],
+                requirement: "At least <strong>3 of 4</strong> conditions must be met."
+            },
+            'supertrend': {
+                implication: "This indicator has strong internal trend logic, so the filter is <strong>lenient</strong>. It mainly acts as a sanity check to avoid signals in extremely weak stocks.",
+                criteria: [
+                    "Price > 50-period EMA (with 5% tolerance)",
+                    "RSI is not extremely oversold (> 25)",
+                    "Volume is > 50% of its 20-period average"
+                ],
+                requirement: "At least <strong>2 of 3</strong> conditions must be met."
+            },
+            'ha_pattern': {
+                implication: "This indicator also has internal trend logic, so the filter is <strong>lenient</strong>. It acts as a basic check to ensure the pattern isn't occurring in a free-falling stock.",
+                criteria: [
+                    "Price > 50-period EMA (with 5% tolerance)",
+                    "RSI is not extremely oversold (> 25)",
+                    "Volume is > 50% of its 20-period average"
+                ],
+                requirement: "At least <strong>2 of 3</strong> conditions must be met."
             }
         };
 
-        function updateExplanation() {
-            const selectedStrategy = strategySelect.value;
-            const content = explanations[selectedStrategy];
+        function updateUI() {
+            const strategy = strategySelect.value;
+            // Update main strategy explanation
+            explanationCard.innerHTML = `<h3 class="text-xl font-semibold mb-2">${explanations[strategy].title}</h3><p class="text-sm text-gray-600">${explanations[strategy].description}</p>`;
             
-            let criteriaHtml = '';
-            if (content.criteria) {
-                criteriaHtml = `
-                    <h4 class="font-semibold mt-4 mb-2">${content.criteria_title || 'Filter Criteria:'}</h4>
-                    <ul class="text-sm text-gray-600 list-disc space-y-1">
-                        ${content.criteria.map(item => `<li>${item}</li>`).join('')}
-                    </ul>`;
-            }
-            let scoreHtml = content.score ? `<p class="text-sm text-gray-600 mt-4"><b>Trend Score:</b> ${content.score}</p>` : '';
-
-            explanationCard.innerHTML = `
-                <h3 class="text-xl font-semibold mb-2">${content.title}</h3>
-                <p class="text-sm text-gray-600">${content.description}</p>
-                ${criteriaHtml}
-                ${scoreHtml}
+            // Update adaptive filter explanation
+            const filterInfo = adaptiveFilterExplanations[strategy];
+            uptrendExplanationCard.innerHTML = `
+                <h3 class="text-xl font-semibold mb-2">About the Adaptive Trend Filter</h3>
+                <p class="text-sm text-gray-600">${filterInfo.implication}</p>
+                <p class="text-sm text-gray-600 mt-3">For this strategy, the following criteria are checked:</p>
+                <ul class="text-sm text-gray-600 list-disc space-y-1 mt-4">
+                    ${filterInfo.criteria.map(item => `<li>${item}</li>`).join('')}
+                </ul>
+                <p class="text-sm font-semibold text-gray-700 mt-4">${filterInfo.requirement}</p>
             `;
-        }
 
-        strategySelect.addEventListener('change', () => {
-            patternInputContainer.classList.toggle('hidden', strategySelect.value !== 'HA_Pattern');
-            updateExplanation();
-        });
+            // Show/hide correct parameter inputs
+            document.querySelectorAll('.param-group').forEach(el => el.classList.remove('active'));
+            document.getElementById(`${strategy}-params`).classList.add('active');
+        }
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
-            
             submitButton.disabled = true;
             submitButton.querySelector('span').textContent = 'Scanning...';
             loadingDiv.classList.remove('hidden');
@@ -190,94 +238,78 @@
             scanStatsDiv.innerHTML = '';
             resultsTbody.innerHTML = '';
 
+            const params = getStrategyParams();
+
             try {
-                const response = await fetch(`/run-screener`, {
+                const response = await fetch('/run-screener', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         index: document.getElementById('index').value,
+                        timeframe: document.getElementById('timeframe').value,
                         strategy: strategySelect.value,
-                        pattern: document.getElementById('pattern').value,
-                        timeframe: document.getElementById('timeframe').value
+                        params: params,
+                        applyUptrendFilter: document.getElementById('uptrend-filter').checked
                     }),
                 });
-
-                const responseText = await response.text();
-                const data = JSON.parse(responseText);
-                
+                const data = await response.json();
                 if (!response.ok) throw new Error(data.error || 'A server error occurred.');
-                
                 displayResults(data);
-
             } catch (error) {
-                let message = error.message;
-                if (error instanceof SyntaxError) {
-                    message = "The server returned an invalid response. This may be due to a timeout. Please try scanning the S&P 100 first.";
-                }
-                showErrorState(message);
+                showErrorState(error.message);
             } finally {
                 submitButton.disabled = false;
                 submitButton.querySelector('span').textContent = 'Run Screener';
                 loadingDiv.classList.add('hidden');
             }
         });
-        
-        resultsTbody.addEventListener('click', (e) => {
-            if (e.target && e.target.classList.contains('view-chart-btn')) {
-                loadTradingViewChart(e.target.dataset.ticker);
+
+        function getStrategyParams() {
+            const strategy = strategySelect.value;
+            switch(strategy) {
+                case 'ma_crossover':
+                    return { short_window: parseInt(document.getElementById('ma-short').value), long_window: parseInt(document.getElementById('ma-long').value) };
+                case 'rsi':
+                    return { rsi_length: parseInt(document.getElementById('rsi-length').value), rsi_threshold: parseInt(document.getElementById('rsi-threshold').value) };
+                case 'supertrend':
+                    return { supertrend_length: parseInt(document.getElementById('supertrend-length').value), supertrend_multiplier: parseFloat(document.getElementById('supertrend-multiplier').value) };
+                case 'ha_pattern':
+                    return { pattern: document.getElementById('pattern').value };
+                default:
+                    return {};
             }
-        });
+        }
 
         function displayResults(data) {
             const { matching_stocks, total_scanned, total_in_index, failed_tickers } = data;
-            
-            let statsHtml = `Scanned ${total_scanned} of ${total_in_index} stocks.`;
-            if (failed_tickers && failed_tickers.length > 0) {
-                statsHtml += `<br><span class="text-red-500">${failed_tickers.length} failed.</span>`;
-            }
-            scanStatsDiv.innerHTML = statsHtml;
+            scanStatsDiv.innerHTML = `Scanned ${total_scanned} of ${total_in_index} stocks. ${failed_tickers.length > 0 ? `<span class="text-red-500">${failed_tickers.length} failed.</span>` : ''}`;
 
-            updateTableHeaders(strategySelect.value);
-            
             if (!matching_stocks || matching_stocks.length === 0) {
                 emptyStateDiv.classList.remove('hidden');
                 emptyStateDiv.querySelector('h3').textContent = "No stocks found";
                 emptyStateDiv.querySelector('p').textContent = "Your criteria did not match any stocks.";
-            } else {
-                matching_stocks.forEach((stock) => {
-                    const row = resultsTbody.insertRow();
-                    if (strategySelect.value === 'Uptrend_Confirmation') {
-                        row.innerHTML = `
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${stock.Ticker}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${stock.Close}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${stock['52_Week_High']}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${stock['52_Week_Low']}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${stock.Trend_Score}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${stock.Trend_Strength}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium"><button class="view-chart-btn text-indigo-600 hover:text-indigo-900" data-ticker="${stock.Ticker}">View</button></td>`;
-                    } else { // HA_Pattern
-                        row.innerHTML = `
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${stock.Ticker}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${stock.Close}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium"><button class="view-chart-btn text-indigo-600 hover:text-indigo-900" data-ticker="${stock.Ticker}">View Chart</button></td>`;
-                    }
-                });
-                resultsTable.classList.remove('hidden');
+                return;
             }
+            
+            const firstResult = matching_stocks[0];
+            const headers = Object.keys(firstResult);
+            document.getElementById('results-thead').innerHTML = `<tr>${headers.map(h => `<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">${h}</th>`).join('')}<th class="px-6 py-3"></th></tr>`;
+            
+            let tableRows = '';
+            matching_stocks.forEach(stock => {
+                let cells = '';
+                headers.forEach(header => {
+                    cells += `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${stock[header] || 'N/A'}</td>`;
+                });
+                tableRows += `<tr>${cells}<td class="px-6 py-4 text-sm font-medium"><button class="view-chart-btn text-indigo-600 hover:text-indigo-900" data-ticker="${stock.Ticker}">View Chart</button></td></tr>`;
+            });
+            resultsTbody.innerHTML = tableRows;
+            resultsTable.classList.remove('hidden');
         }
         
-        function updateTableHeaders(strategy) {
-            let headers = [];
-            if (strategy === 'Uptrend_Confirmation') {
-                headers = ['Ticker', 'Close', '52W High', '52W Low', 'Score', 'Strength', 'Chart'];
-            } else {
-                headers = ['Ticker', 'Close', 'Chart'];
-            }
-            resultsThead.innerHTML = `<tr>${headers.map(h => `<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">${h}</th>`).join('')}</tr>`;
-        }
-
         function loadTradingViewChart(ticker) {
-            chartTickerTitle.textContent = `TradingView Chart: ${ticker}`;
+            document.getElementById('chart-ticker-title').textContent = `TradingView Chart: ${ticker}`;
+            const widgetContainer = document.getElementById('tradingview-widget-container');
             widgetContainer.innerHTML = '';
             new TradingView.widget({
                 "autosize": true, "symbol": ticker, "interval": "D", "timezone": "Etc/UTC", "theme": "light", "style": "1", "locale": "en", "toolbar_bg": "#f1f3f6", "enable_publishing": false, "allow_symbol_change": true, "container_id": "tradingview-widget-container"
@@ -287,14 +319,18 @@
         }
 
         function showErrorState(message) {
-            errorMessageP.textContent = message || "An unknown error occurred.";
+            document.getElementById('error-message').textContent = message || "An unknown error occurred.";
             errorStateDiv.classList.remove('hidden');
         }
 
-        // Initial setup
-        document.addEventListener('DOMContentLoaded', () => {
-            updateExplanation();
+        strategySelect.addEventListener('change', updateUI);
+        resultsTbody.addEventListener('click', (e) => {
+            if (e.target && e.target.classList.contains('view-chart-btn')) {
+                loadTradingViewChart(e.target.dataset.ticker);
+            }
         });
+
+        document.addEventListener('DOMContentLoaded', updateUI);
     </script>
 </body>
 </html>
