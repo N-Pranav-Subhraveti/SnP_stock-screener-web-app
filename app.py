@@ -13,7 +13,6 @@ import time
 # Initialize Flask App
 app = Flask(__name__, static_folder='static')
 CORS(app)
-session = requests.Session()
 
 # --- Route to serve the frontend ---
 @app.route('/')
@@ -316,11 +315,12 @@ def handle_screener_request():
             return jsonify({"error": f"Could not fetch tickers for {index}."}), 500
 
         print(f"Downloading data for {len(tickers)} tickers...")
+        
+        # FIX: Remove the session parameter to let yfinance handle it automatically
         all_data = yf.download(
             tickers, 
             period="2y", 
             auto_adjust=True, 
-            session=session, 
             progress=False, 
             group_by='ticker',
             threads=True
@@ -330,17 +330,17 @@ def handle_screener_request():
         ticker_data_map = {}
         
         # Process ticker data
-        for ticker in tickers:
-            if isinstance(all_data, pd.DataFrame) and len(all_data.columns) > 0:
-                # Single ticker case
-                if len(tickers) == 1:
-                    ticker_data_map[ticker] = all_data
-                else:
-                    # Multi-ticker case
-                    if ticker in all_data.columns.get_level_values(0):
-                        ticker_data_map[ticker] = all_data[ticker]
-            else:
-                break
+        if len(tickers) == 1:
+            # Single ticker case
+            if not all_data.empty:
+                ticker_data_map[tickers[0]] = all_data
+        else:
+            # Multi-ticker case
+            for ticker in tickers:
+                if ticker in all_data.columns.get_level_values(0):
+                    ticker_data = all_data[ticker]
+                    if isinstance(ticker_data, pd.DataFrame) and not ticker_data.empty:
+                        ticker_data_map[ticker] = ticker_data
 
         print(f"Successfully downloaded data for {len(ticker_data_map)} tickers")
         
@@ -355,9 +355,13 @@ def handle_screener_request():
                     futures.append(future)
             
             for future in futures:
-                result = future.result(timeout=30)  # 30 second timeout
-                if result: 
-                    matching_stocks.append(result)
+                try:
+                    result = future.result(timeout=30)  # 30 second timeout
+                    if result: 
+                        matching_stocks.append(result)
+                except Exception as e:
+                    print(f"Future error for ticker: {e}")
+                    continue
 
         total_in_index, failed = len(tickers), list(set(tickers) - set(ticker_data_map.keys()))
         print(f"Scan complete. Found {len(matching_stocks)} matching stocks.")
