@@ -7,61 +7,47 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        html { scroll-behavior: smooth; }
         body { font-family: 'Inter', sans-serif; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .loader {
-            border: 4px solid rgba(0, 0, 0, .1);
-            border-left-color: #4f46e5;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-        }
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #f1f5f9; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-        .explanation-card ul { list-style-position: inside; }
-        .explanation-card li { margin-bottom: 0.5rem; }
-        .form-checkbox:checked { background-color: #4f46e5; border-color: #4f46e5; }
-        .param-group { display: none; }
-        .param-group.active { display: block; }
+        .card { background-color: white; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); }
+        .btn-primary { background-color: #4f46e5; color: white; }
+        .btn-primary:hover { background-color: #4338ca; }
+        .fade-in { animation: fadeIn 0.5s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-800">
 
-    <div class="container mx-auto p-4 md:p-8">
-        
-        <header class="text-center mb-8 md:mb-12">
-            <h1 class="text-4xl md:text-5xl font-bold text-gray-900">Advanced Stock Screener</h1>
-            <p class="text-gray-600 mt-2">Find trade signals with custom parameters and trend validation</p>
+    <div class="container mx-auto p-4 md:p-8 max-w-7xl">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-900">Advanced Stock Screener</h1>
+            <p class="text-lg text-gray-600 mt-2">Find your next trade with powerful, customizable strategies.</p>
         </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
             
-            <div class="lg-col-span-1 space-y-8">
-                <!-- Screening Criteria -->
-                <div class="bg-white p-6 rounded-2xl shadow-lg border border-gray-200 h-fit">
-                    <h2 class="text-2xl font-semibold mb-6 border-b pb-4">Screening Criteria</h2>
-                    <form id="screener-form" class="space-y-6">
+            <!-- Left Column: Controls & Explanations -->
+            <div class="lg:col-span-1 space-y-6">
+                <!-- Screening Criteria Card -->
+                <div class="card p-6">
+                    <h2 class="text-xl font-semibold mb-4 border-b pb-2">Screening Criteria</h2>
+                    <form id="screener-form" class="space-y-4">
                         <div>
-                            <label for="index" class="block text-sm font-medium text-gray-700">Index</label>
-                            <select id="index" class="w-full mt-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 transition">
-                                <option value="S&P 100">S&P 100</option>
-                                <option value="S&P 500">S&P 500</option>
+                            <label for="index-select" class="block text-sm font-medium text-gray-700">Stock Index</label>
+                            <select id="index-select" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                <option>S&P 500</option>
+                                <option>S&P 100</option>
                             </select>
                         </div>
                         <div>
-                            <label for="timeframe" class="block text-sm font-medium text-gray-700">Timeframe</label>
-                            <select id="timeframe" class="w-full mt-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 transition">
+                            <label for="timeframe-select" class="block text-sm font-medium text-gray-700">Timeframe</label>
+                            <select id="timeframe-select" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                                 <option value="daily">Daily</option>
                                 <option value="weekly">Weekly</option>
                             </select>
                         </div>
                         <div>
-                            <label for="strategy" class="block text-sm font-medium text-gray-700">Signal Strategy</label>
-                            <select id="strategy" class="w-full mt-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 transition">
+                            <label for="strategy-select" class="block text-sm font-medium text-gray-700">Signal Strategy</label>
+                            <select id="strategy-select" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                                 <option value="ma_crossover">MA Crossover</option>
                                 <option value="rsi">RSI Oversold</option>
                                 <option value="supertrend">Supertrend Signal</option>
@@ -69,269 +55,331 @@
                             </select>
                         </div>
 
-                        <!-- Dynamic Strategy Parameters -->
-                        <div id="strategy-params-container" class="space-y-4 border-t pt-4">
-                            <h3 class="text-md font-medium text-gray-700">Strategy Parameters</h3>
-                            <div id="ma_crossover-params" class="param-group space-y-2">
-                                <div class="grid grid-cols-2 gap-2">
-                                    <div><label class="text-xs">Short Window</label><input type="number" id="ma-short" value="50" class="w-full p-2 border rounded-md"></div>
-                                    <div><label class="text-xs">Long Window</label><input type="number" id="ma-long" value="200" class="w-full p-2 border rounded-md"></div>
-                                </div>
-                            </div>
-                            <div id="rsi-params" class="param-group space-y-2">
-                                <div class="grid grid-cols-2 gap-2">
-                                     <div><label class="text-xs">RSI Length</label><input type="number" id="rsi-length" value="14" class="w-full p-2 border rounded-md"></div>
-                                     <div><label class="text-xs">Oversold Level</label><input type="number" id="rsi-threshold" value="30" class="w-full p-2 border rounded-md"></div>
-                                </div>
-                            </div>
-                            <div id="supertrend-params" class="param-group space-y-2">
-                                <div class="grid grid-cols-2 gap-2">
-                                    <div><label class="text-xs">Length</label><input type="number" id="supertrend-length" value="7" class="w-full p-2 border rounded-md"></div>
-                                    <div><label class="text-xs">Multiplier</label><input type="number" id="supertrend-multiplier" step="0.1" value="3.0" class="w-full p-2 border rounded-md"></div>
-                                </div>
-                            </div>
-                            <div id="ha_pattern-params" class="param-group">
-                                <label class="text-xs">Candle Pattern</label>
-                                <input type="text" id="pattern" placeholder="e.g., RRGG" value="RRGG" class="w-full mt-1 p-2 border rounded-md">
-                            </div>
+                        <!-- Dynamic Parameters Section -->
+                        <div id="strategy-params-container" class="space-y-4 pt-2 border-t mt-4">
+                            <!-- This will be populated by JavaScript -->
                         </div>
-                        
-                        <div class="flex items-center border-t pt-4">
-                            <input id="uptrend-filter" type="checkbox" class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 form-checkbox">
-                            <label for="uptrend-filter" class="ml-2 block text-sm text-gray-900">Apply Adaptive Trend Filter</label>
+
+                        <div class="pt-4 border-t">
+                            <label for="uptrend-filter" class="flex items-center">
+                                <input id="uptrend-filter" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                <span class="ml-2 text-sm font-medium text-gray-700">Apply Adaptive Trend Filter</span>
+                            </label>
                         </div>
-                        
-                        <button type="submit" id="submit-button" class="w-full bg-indigo-600 text-white font-semibold py-3 px-4 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition flex items-center justify-center">
-                            <span>Run Screener</span>
+
+                        <button type="submit" id="run-screener-btn" class="w-full btn-primary font-semibold py-2 px-4 rounded-md shadow-sm transition-transform transform hover:scale-105">
+                            Run Screener
                         </button>
                     </form>
                 </div>
-
-                <!-- Strategy Explanation Card -->
-                <div id="explanation-card" class="bg-white p-6 rounded-2xl shadow-lg border border-gray-200 h-fit explanation-card"></div>
                 
-                <!-- Uptrend Filter Explanation Card (Now Dynamic) -->
-                <div id="uptrend-explanation-card" class="bg-white p-6 rounded-2xl shadow-lg border border-gray-200 h-fit explanation-card">
-                    <!-- Content will be generated by JavaScript -->
+                <!-- Explanation Card -->
+                <div id="explanation-card" class="card p-6 fade-in">
+                    <!-- Content will be populated by JavaScript -->
                 </div>
             </div>
-            
-            <!-- Results Column -->
-            <div class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-lg border border-gray-200">
-                <div class="flex justify-between items-center border-b pb-4 mb-4">
-                    <h2 class="text-2xl font-semibold">Matching Stocks</h2>
-                    <div id="scan-stats" class="text-sm text-gray-600 text-right"></div>
-                </div>
-                <div id="results-container" class="overflow-x-auto">
-                    <div id="loading" class="hidden flex-col items-center justify-center py-12"><div class="loader mb-4"></div><p>Scanning...</p></div>
-                    <div id="error-state" class="hidden text-center py-12"><h3>An Error Occurred</h3><p id="error-message" class="text-red-600"></p></div>
-                    <div id="empty-state" class="text-center py-12"><h3>No results yet</h3><p>Adjust criteria and run the screener.</p></div>
-                    <table id="results-table" class="min-w-full divide-y divide-gray-200 hidden">
-                        <thead id="results-thead" class="bg-gray-50"></thead>
-                        <tbody id="results-tbody" class="bg-white divide-y divide-gray-200"></tbody>
-                    </table>
+
+            <!-- Right Column: Results -->
+            <div class="lg:col-span-2">
+                <div class="card p-6 min-h-[400px]">
+                    <h2 class="text-xl font-semibold mb-4 border-b pb-2">Matching Stocks</h2>
+                    <div id="results-area">
+                        <p id="results-placeholder" class="text-gray-500">Results will appear here after running the screener.</p>
+                        <div id="loader" class="hidden text-center py-10">
+                            <svg class="animate-spin h-8 w-8 text-indigo-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <p class="mt-4 font-medium">Scanning the market... this may take a moment.</p>
+                        </div>
+                        <div id="stats-container" class="hidden text-sm text-gray-600 mb-4 p-3 bg-gray-100 rounded-md"></div>
+                        <div id="results-table-container" class="overflow-x-auto"></div>
+                        <div id="error-container" class="hidden text-sm text-red-700 p-3 bg-red-100 rounded-md"></div>
+                    </div>
                 </div>
             </div>
         </div>
-
-        <!-- TradingView Chart Section -->
-        <div id="chart-section" class="mt-8 bg-white p-6 rounded-2xl shadow-lg border border-gray-200 hidden">
-            <h2 id="chart-ticker-title" class="text-2xl font-semibold mb-4"></h2>
-            <div id="tradingview-widget-container" style="height: 500px;"></div>
+        
+        <!-- TradingView Widget Container -->
+        <div id="tradingview-widget-container" class="hidden mt-8 card p-2">
+            <div class="flex justify-between items-center p-2">
+                <h3 id="tv-widget-title" class="text-lg font-semibold"></h3>
+                <button id="close-tv-widget" class="text-gray-500 hover:text-gray-800">&times;</button>
+            </div>
+            <div id="tradingview_chart" style="height: 500px;"></div>
         </div>
     </div>
 
     <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
     <script>
-        // DOM Elements
-        const form = document.getElementById('screener-form');
-        const strategySelect = document.getElementById('strategy');
+        const strategySelect = document.getElementById('strategy-select');
+        const paramsContainer = document.getElementById('strategy-params-container');
         const explanationCard = document.getElementById('explanation-card');
-        const uptrendExplanationCard = document.getElementById('uptrend-explanation-card');
-        const resultsTbody = document.getElementById('results-tbody');
-        const submitButton = document.getElementById('submit-button');
-        const loadingDiv = document.getElementById('loading');
-        const errorStateDiv = document.getElementById('error-state');
-        const emptyStateDiv = document.getElementById('empty-state');
-        const resultsTable = document.getElementById('results-table');
-        const scanStatsDiv = document.getElementById('scan-stats');
-        const chartSection = document.getElementById('chart-section');
 
-        const explanations = {
-            'ma_crossover': { title: "Strategy: MA Crossover", description: "Finds stocks where a shorter-term Simple Moving Average (SMA) has recently crossed above a longer-term SMA. A classic bullish signal." },
-            'rsi': { title: "Strategy: RSI Oversold", description: "Finds stocks with a Relative Strength Index (RSI) below a specified threshold, indicating the stock may be oversold and due for a bounce." },
-            'supertrend': { title: "Strategy: Supertrend Signal", description: "Finds stocks that have a bullish Supertrend signal, suggesting the stock is in a confirmed uptrend according to this indicator." },
-            'ha_pattern': { title: "Strategy: Heikin-Ashi Pattern", description: "Finds stocks matching a specific sequence of 'G' (green) and 'R' (red) Heikin-Ashi candles." }
-        };
-
-        const adaptiveFilterExplanations = {
-            'ma_crossover': {
-                implication: "This is a trend-following signal, so the filter is <strong>strict</strong>. It ensures the crossover is happening within an already established, healthy uptrend.",
-                criteria: [
-                    "Price > 20-period EMA",
-                    "Price > 50-period EMA",
-                    "RSI is between 35 and 80",
-                    "Volume is > 60% of its 20-period average",
-                    "Price is > 85% of its 20-period high"
-                ],
-                requirement: "At least <strong>3 of 5</strong> conditions must be met."
+        const strategyDetails = {
+            ma_crossover: {
+                name: 'MA Crossover',
+                params: `
+                    <div>
+                        <label for="short_window" class="block text-xs font-medium text-gray-600">Short Window</label>
+                        <input type="number" id="short_window" value="50" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm text-sm p-2">
+                    </div>
+                    <div>
+                        <label for="long_window" class="block text-xs font-medium text-gray-600">Long Window</label>
+                        <input type="number" id="long_window" value="200" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm text-sm p-2">
+                    </div>
+                `,
+                explanation: `
+                    <h3 class="font-semibold text-lg mb-2">MA Crossover Strategy</h3>
+                    <p class="text-sm text-gray-600">This strategy identifies stocks where a shorter-term Simple Moving Average (SMA) crosses above a longer-term SMA. This is a classic signal indicating a potential shift to a bullish trend.</p>
+                `,
+                filterExplanation: `
+                    <h4 class="font-semibold text-md mt-4 mb-2">Adaptive Filter Criteria (Strict)</h4>
+                    <ul class="list-disc list-inside text-sm text-gray-600 space-y-1">
+                        <li>Price is above the 20-period EMA.</li>
+                        <li>Price is above the 50-period EMA.</li>
+                        <li>RSI is between 35 and 80.</li>
+                        <li>Volume is above 60% of its 20-period average.</li>
+                        <li>Price is within 85% of its 20-period high.</li>
+                        <li class="font-medium pt-1">Requires at least 3 of 5 conditions to pass.</li>
+                    </ul>
+                `
             },
-            'rsi': {
-                implication: "This is a momentum/reversal signal, so the filter is more <strong>flexible</strong>. It looks for signs of recovery, even if the trend isn't perfect yet.",
-                criteria: [
-                    "Price > 20-period EMA (with 2% tolerance)",
-                    "Price > 50-period EMA (with 3% tolerance)",
-                    "RSI is between 30 and 75",
-                    "Volume is > 70% of its 20-period average"
-                ],
-                requirement: "At least <strong>3 of 4</strong> conditions must be met."
+            rsi: {
+                name: 'RSI Oversold',
+                params: `
+                    <div>
+                        <label for="rsi_length" class="block text-xs font-medium text-gray-600">RSI Length</label>
+                        <input type="number" id="rsi_length" value="14" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm text-sm p-2">
+                    </div>
+                    <div>
+                        <label for="rsi_threshold" class="block text-xs font-medium text-gray-600">Oversold Level</label>
+                        <input type="number" id="rsi_threshold" value="30" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm text-sm p-2">
+                    </div>
+                `,
+                explanation: `
+                    <h3 class="font-semibold text-lg mb-2">RSI Oversold Strategy</h3>
+                    <p class="text-sm text-gray-600">This strategy looks for stocks that may be poised for a reversal bounce. It identifies stocks where the Relative Strength Index (RSI) has dropped below a specified "oversold" threshold, suggesting recent selling may be exhausted.</p>
+                `,
+                filterExplanation: `
+                    <h4 class="font-semibold text-md mt-4 mb-2">Adaptive Filter Criteria (Flexible)</h4>
+                    <ul class="list-disc list-inside text-sm text-gray-600 space-y-1">
+                        <li>Price is within 2% of the 20-period EMA.</li>
+                        <li>Price is within 3% of the 50-period EMA.</li>
+                        <li>RSI is between 30 and 75.</li>
+                        <li>Volume is above 70% of its 20-period average.</li>
+                        <li class="font-medium pt-1">Requires at least 3 of 4 conditions to pass.</li>
+                    </ul>
+                `
             },
-            'supertrend': {
-                implication: "This indicator has strong internal trend logic, so the filter is <strong>lenient</strong>. It mainly acts as a sanity check to avoid signals in extremely weak stocks.",
-                criteria: [
-                    "Price > 50-period EMA (with 5% tolerance)",
-                    "RSI is not extremely oversold (> 25)",
-                    "Volume is > 50% of its 20-period average"
-                ],
-                requirement: "At least <strong>2 of 3</strong> conditions must be met."
+            supertrend: {
+                name: 'Supertrend Signal',
+                params: `
+                    <div>
+                        <label for="supertrend_length" class="block text-xs font-medium text-gray-600">Length</label>
+                        <input type="number" id="supertrend_length" value="7" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm text-sm p-2">
+                    </div>
+                    <div>
+                        <label for="supertrend_multiplier" class="block text-xs font-medium text-gray-600">Multiplier</label>
+                        <input type="number" id="supertrend_multiplier" value="3.0" step="0.1" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm text-sm p-2">
+                    </div>
+                `,
+                explanation: `
+                    <h3 class="font-semibold text-lg mb-2">Supertrend Signal Strategy</h3>
+                    <p class="text-sm text-gray-600">The Supertrend is a trend-following indicator. This strategy finds stocks where the Supertrend has recently flipped to a bullish signal (the indicator line is below the price), indicating that the asset is currently in an uptrend.</p>
+                `,
+                filterExplanation: `
+                     <h4 class="font-semibold text-md mt-4 mb-2">Adaptive Filter Criteria (Lenient)</h4>
+                    <ul class="list-disc list-inside text-sm text-gray-600 space-y-1">
+                        <li>Price is within 5% of the 50-period EMA.</li>
+                        <li>RSI is above 25 (not extremely oversold).</li>
+                        <li>Volume is above 50% of its 20-period average.</li>
+                        <li class="font-medium pt-1">Requires at least 2 of 3 conditions to pass.</li>
+                    </ul>
+                `
             },
-            'ha_pattern': {
-                implication: "This indicator also has internal trend logic, so the filter is <strong>lenient</strong>. It acts as a basic check to ensure the pattern isn't occurring in a free-falling stock.",
-                criteria: [
-                    "Price > 50-period EMA (with 5% tolerance)",
-                    "RSI is not extremely oversold (> 25)",
-                    "Volume is > 50% of its 20-period average"
-                ],
-                requirement: "At least <strong>2 of 3</strong> conditions must be met."
+            ha_pattern: {
+                name: 'Heikin-Ashi Pattern',
+                params: `
+                    <div>
+                        <label for="pattern" class="block text-xs font-medium text-gray-600">Candle Pattern (G=Green, R=Red)</label>
+                        <input type="text" id="pattern" value="RRGG" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm text-sm p-2">
+                    </div>
+                `,
+                explanation: `
+                    <h3 class="font-semibold text-lg mb-2">Heikin-Ashi Pattern Strategy</h3>
+                    <p class="text-sm text-gray-600">Heikin-Ashi candles smooth out price action to better identify trends. This strategy scans for a specific sequence of red (downtrend) and green (uptrend) candles, which can signal a potential trend reversal or continuation.</p>
+                `,
+                filterExplanation: `
+                     <h4 class="font-semibold text-md mt-4 mb-2">Adaptive Filter Criteria (Lenient)</h4>
+                    <ul class="list-disc list-inside text-sm text-gray-600 space-y-1">
+                        <li>Price is within 5% of the 50-period EMA.</li>
+                        <li>RSI is above 25 (not extremely oversold).</li>
+                        <li>Volume is above 50% of its 20-period average.</li>
+                        <li class="font-medium pt-1">Requires at least 2 of 3 conditions to pass.</li>
+                    </ul>
+                `
             }
         };
 
         function updateUI() {
-            const strategy = strategySelect.value;
-            // Update main strategy explanation
-            explanationCard.innerHTML = `<h3 class="text-xl font-semibold mb-2">${explanations[strategy].title}</h3><p class="text-sm text-gray-600">${explanations[strategy].description}</p>`;
+            const selectedStrategy = strategySelect.value;
+            const details = strategyDetails[selectedStrategy];
             
-            // Update adaptive filter explanation
-            const filterInfo = adaptiveFilterExplanations[strategy];
-            uptrendExplanationCard.innerHTML = `
-                <h3 class="text-xl font-semibold mb-2">About the Adaptive Trend Filter</h3>
-                <p class="text-sm text-gray-600">${filterInfo.implication}</p>
-                <p class="text-sm text-gray-600 mt-3">For this strategy, the following criteria are checked:</p>
-                <ul class="text-sm text-gray-600 list-disc space-y-1 mt-4">
-                    ${filterInfo.criteria.map(item => `<li>${item}</li>`).join('')}
-                </ul>
-                <p class="text-sm font-semibold text-gray-700 mt-4">${filterInfo.requirement}</p>
-            `;
-
-            // Show/hide correct parameter inputs
-            document.querySelectorAll('.param-group').forEach(el => el.classList.remove('active'));
-            document.getElementById(`${strategy}-params`).classList.add('active');
+            paramsContainer.innerHTML = details.params;
+            explanationCard.innerHTML = details.explanation + details.filterExplanation;
+            paramsContainer.classList.add('fade-in');
+            explanationCard.classList.add('fade-in');
+            setTimeout(() => {
+                paramsContainer.classList.remove('fade-in');
+                explanationCard.classList.remove('fade-in');
+            }, 500);
         }
+
+        strategySelect.addEventListener('change', updateUI);
+        
+        // Initial call to set up the UI
+        updateUI();
+
+        const form = document.getElementById('screener-form');
+        const runBtn = document.getElementById('run-screener-btn');
+        const loader = document.getElementById('loader');
+        const resultsArea = document.getElementById('results-area');
+        const placeholder = document.getElementById('results-placeholder');
+        const statsContainer = document.getElementById('stats-container');
+        const tableContainer = document.getElementById('results-table-container');
+        const errorContainer = document.getElementById('error-container');
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
-            submitButton.disabled = true;
-            submitButton.querySelector('span').textContent = 'Scanning...';
-            loadingDiv.classList.remove('hidden');
-            loadingDiv.classList.add('flex');
-            [resultsTable, emptyStateDiv, errorStateDiv, chartSection].forEach(el => el.classList.add('hidden'));
-            scanStatsDiv.innerHTML = '';
-            resultsTbody.innerHTML = '';
+            
+            // UI Reset
+            runBtn.disabled = true;
+            runBtn.textContent = 'Scanning...';
+            loader.classList.remove('hidden');
+            placeholder.classList.add('hidden');
+            tableContainer.innerHTML = '';
+            statsContainer.classList.add('hidden');
+            errorContainer.classList.add('hidden');
+            document.getElementById('tradingview-widget-container').classList.add('hidden');
 
-            const params = getStrategyParams();
+            const strategy = strategySelect.value;
+            const params = {};
+            const paramInputs = paramsContainer.querySelectorAll('input');
+            paramInputs.forEach(input => {
+                if (input.type === 'number') {
+                    params[input.id] = parseFloat(input.value);
+                } else {
+                    params[input.id] = input.value;
+                }
+            });
+
+            const payload = {
+                index: document.getElementById('index-select').value,
+                timeframe: document.getElementById('timeframe-select').value,
+                strategy: strategy,
+                applyUptrendFilter: document.getElementById('uptrend-filter').checked,
+                params: params
+            };
 
             try {
                 const response = await fetch('/run-screener', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        index: document.getElementById('index').value,
-                        timeframe: document.getElementById('timeframe').value,
-                        strategy: strategySelect.value,
-                        params: params,
-                        applyUptrendFilter: document.getElementById('uptrend-filter').checked
-                    }),
+                    body: JSON.stringify(payload)
                 });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || `Server responded with status ${response.status}`);
+                }
+
                 const data = await response.json();
-                if (!response.ok) throw new Error(data.error || 'A server error occurred.');
                 displayResults(data);
+
             } catch (error) {
-                showErrorState(error.message);
+                console.error('Fetch Error:', error);
+                errorContainer.textContent = `An error occurred: ${error.message}. Please check the server logs for more details.`;
+                errorContainer.classList.remove('hidden');
             } finally {
-                submitButton.disabled = false;
-                submitButton.querySelector('span').textContent = 'Run Screener';
-                loadingDiv.classList.add('hidden');
+                runBtn.disabled = false;
+                runBtn.textContent = 'Run Screener';
+                loader.classList.add('hidden');
             }
         });
-
-        function getStrategyParams() {
-            const strategy = strategySelect.value;
-            switch(strategy) {
-                case 'ma_crossover':
-                    return { short_window: parseInt(document.getElementById('ma-short').value), long_window: parseInt(document.getElementById('ma-long').value) };
-                case 'rsi':
-                    return { rsi_length: parseInt(document.getElementById('rsi-length').value), rsi_threshold: parseInt(document.getElementById('rsi-threshold').value) };
-                case 'supertrend':
-                    return { supertrend_length: parseInt(document.getElementById('supertrend-length').value), supertrend_multiplier: parseFloat(document.getElementById('supertrend-multiplier').value) };
-                case 'ha_pattern':
-                    return { pattern: document.getElementById('pattern').value };
-                default:
-                    return {};
-            }
-        }
 
         function displayResults(data) {
-            const { matching_stocks, total_scanned, total_in_index, failed_tickers } = data;
-            scanStatsDiv.innerHTML = `Scanned ${total_scanned} of ${total_in_index} stocks. ${failed_tickers.length > 0 ? `<span class="text-red-500">${failed_tickers.length} failed.</span>` : ''}`;
+            statsContainer.innerHTML = `
+                Scanned <strong>${data.total_scanned}</strong> stocks out of <strong>${data.total_in_index}</strong> in the index.
+                Found <strong>${data.matching_stocks.length}</strong> matching signals.
+                ${data.failed_tickers.length > 0 ? `<br>Failed to fetch data for <strong>${data.failed_tickers.length}</strong> tickers.` : ''}
+            `;
+            statsContainer.classList.remove('hidden');
 
-            if (!matching_stocks || matching_stocks.length === 0) {
-                emptyStateDiv.classList.remove('hidden');
-                emptyStateDiv.querySelector('h3').textContent = "No stocks found";
-                emptyStateDiv.querySelector('p').textContent = "Your criteria did not match any stocks.";
+            if (data.matching_stocks.length === 0) {
+                tableContainer.innerHTML = '<p class="text-gray-500 text-center py-4">No stocks found matching your criteria.</p>';
                 return;
             }
-            
-            const firstResult = matching_stocks[0];
-            const headers = Object.keys(firstResult);
-            document.getElementById('results-thead').innerHTML = `<tr>${headers.map(h => `<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">${h}</th>`).join('')}<th class="px-6 py-3"></th></tr>`;
-            
-            let tableRows = '';
-            matching_stocks.forEach(stock => {
-                let cells = '';
+
+            const headers = Object.keys(data.matching_stocks[0]);
+            let table = `<table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>`;
+            headers.forEach(header => {
+                table += `<th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">${header.replace(/_/g, ' ')}</th>`;
+            });
+            table += `<th scope="col" class="relative px-4 py-3"><span class="sr-only">Chart</span></th></tr></thead><tbody class="bg-white divide-y divide-gray-200">`;
+
+            data.matching_stocks.forEach(stock => {
+                table += '<tr>';
                 headers.forEach(header => {
-                    cells += `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${stock[header] || 'N/A'}</td>`;
+                    table += `<td class="px-4 py-4 whitespace-nowrap text-sm text-gray-800">${stock[header]}</td>`;
                 });
-                tableRows += `<tr>${cells}<td class="px-6 py-4 text-sm font-medium"><button class="view-chart-btn text-indigo-600 hover:text-indigo-900" data-ticker="${stock.Ticker}">View Chart</button></td></tr>`;
+                table += `<td class="px-4 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <button class="text-indigo-600 hover:text-indigo-900 view-chart-btn" data-ticker="${stock.Ticker}">View Chart</button>
+                          </td>`;
+                table += '</tr>';
             });
-            resultsTbody.innerHTML = tableRows;
-            resultsTable.classList.remove('hidden');
-        }
-        
-        function loadTradingViewChart(ticker) {
-            document.getElementById('chart-ticker-title').textContent = `TradingView Chart: ${ticker}`;
-            const widgetContainer = document.getElementById('tradingview-widget-container');
-            widgetContainer.innerHTML = '';
-            new TradingView.widget({
-                "autosize": true, "symbol": ticker, "interval": "D", "timezone": "Etc/UTC", "theme": "light", "style": "1", "locale": "en", "toolbar_bg": "#f1f3f6", "enable_publishing": false, "allow_symbol_change": true, "container_id": "tradingview-widget-container"
-            });
-            chartSection.classList.remove('hidden');
-            chartSection.scrollIntoView();
+
+            table += '</tbody></table>';
+            tableContainer.innerHTML = table;
         }
 
-        function showErrorState(message) {
-            document.getElementById('error-message').textContent = message || "An unknown error occurred.";
-            errorStateDiv.classList.remove('hidden');
-        }
+        let tvWidget = null;
+        document.addEventListener('click', (e) => {
+            if (e.target.classList.contains('view-chart-btn')) {
+                const ticker = e.target.dataset.ticker;
+                const widgetContainer = document.getElementById('tradingview-widget-container');
+                const tvTitle = document.getElementById('tv-widget-title');
+                
+                tvTitle.textContent = `TradingView Chart: ${ticker}`;
+                widgetContainer.classList.remove('hidden');
 
-        strategySelect.addEventListener('change', updateUI);
-        resultsTbody.addEventListener('click', (e) => {
-            if (e.target && e.target.classList.contains('view-chart-btn')) {
-                loadTradingViewChart(e.target.dataset.ticker);
+                if (tvWidget) {
+                    tvWidget.remove();
+                }
+
+                tvWidget = new TradingView.widget({
+                    "autosize": true,
+                    "symbol": ticker,
+                    "interval": "D",
+                    "timezone": "Etc/UTC",
+                    "theme": "light",
+                    "style": "1",
+                    "locale": "en",
+                    "toolbar_bg": "#f1f3f6",
+                    "enable_publishing": false,
+                    "allow_symbol_change": true,
+                    "container_id": "tradingview_chart"
+                });
+                widgetContainer.scrollIntoView({ behavior: 'smooth' });
+            }
+            if (e.target.id === 'close-tv-widget') {
+                document.getElementById('tradingview-widget-container').classList.add('hidden');
             }
         });
-
-        document.addEventListener('DOMContentLoaded', updateUI);
     </script>
+
 </body>
 </html>
 

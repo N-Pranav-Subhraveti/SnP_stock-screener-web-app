@@ -12,10 +12,8 @@ from typing import Dict, Any, Tuple, Optional, List
 # Initialize Flask App
 app = Flask(__name__, static_folder='static')
 CORS(app)
-# --- THIS IS THE FIX ---
 # Create a session that impersonates a real browser to avoid being blocked.
 session = curl_requests.Session(impersonate="chrome110")
-# --- END FIX ---
 
 
 # --- Route to serve the frontend ---
@@ -25,7 +23,7 @@ def serve_index():
 
 # --- Helper & Data Logic ---
 def get_tickers(index_name: str = "S&P 500") -> List[str]:
-    """Fetches list of tickers from Wikipedia."""
+    """Fetches list of tickers from Wikipedia robustly."""
     wiki_pages = {
         "S&P 500": {'url': 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies', 'ticker_col': 'Symbol'},
         "S&P 100": {'url': 'https://en.wikipedia.org/wiki/S%26P_100', 'ticker_col': 'Ticker symbol'}
@@ -34,13 +32,13 @@ def get_tickers(index_name: str = "S&P 500") -> List[str]:
     try:
         page_info = wiki_pages[index_name]
         headers = {'User-Agent': 'Mozilla/5.0'}
-        # Use the new session for this request as well for consistency
         response = session.get(page_info['url'], headers=headers)
         response.raise_for_status()
         
+        # Robustly find table by looking for the ticker column header
         tables = pd.read_html(io.StringIO(response.text), match=page_info['ticker_col'])
         if not tables:
-            raise ValueError(f"Could not find ticker table on Wikipedia for {index_name}.")
+            raise ValueError(f"Could not find the ticker table on the Wikipedia page for {index_name}.")
             
         index_table = tables[0]
         
@@ -52,8 +50,6 @@ def get_tickers(index_name: str = "S&P 500") -> List[str]:
         return []
 
 # --- Individual Strategy Checkers ---
-# (No changes needed in the functions below, they are included for completeness)
-
 def check_ma_crossover_signal(df: pd.DataFrame, params: Dict) -> Tuple[bool, Optional[Dict[str, Any]]]:
     short_window = params.get('short_window', 50)
     long_window = params.get('long_window', 200)
@@ -169,12 +165,11 @@ def handle_screener_request():
         tickers = get_tickers(req_data.get('index'))
         if not tickers: return jsonify({"error": f"Could not fetch tickers for {req_data.get('index')}."}), 500
 
-        # yfinance will now use the robust curl_cffi session
         all_data = yf.download(tickers, period="2y", auto_adjust=True, session=session, progress=False, group_by='ticker')
         
         matching_stocks = []
         with ThreadPoolExecutor(max_workers=5) as executor:
-            ticker_data_map = {t: all_data[t] for t in tickers if isinstance(all_data[t], pd.DataFrame) and not all_data[t].empty}
+            ticker_data_map = {t: all_data[t] for t in tickers if isinstance(all_data.get(t), pd.DataFrame) and not all_data.get(t).empty}
             futures = [executor.submit(process_ticker_data, ticker, df, req_data.get('strategy'), params, req_data.get('timeframe'), req_data.get('applyUptrendFilter')) for ticker, df in ticker_data_map.items()]
             for future in futures:
                 result = future.result()
@@ -185,7 +180,7 @@ def handle_screener_request():
         return jsonify({"matching_stocks": matching_stocks, "total_scanned": len(ticker_data_map), "total_in_index": total_in_index, "failed_tickers": failed})
     except Exception as e:
         print(f"[SERVER ERROR] An unexpected error occurred: {e}")
-        return jsonify({"error": "An internal server error. Please try again."}), 500
+        return jsonify({"error": "An internal server error. This can happen if a data source is temporarily unavailable. Please try again."}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)

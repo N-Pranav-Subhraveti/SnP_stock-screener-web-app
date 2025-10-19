@@ -1,8 +1,9 @@
+curl_cffi
 Flask
 Flask-Cors
-pandas
-yfinance
-pandas-ta
-numpy
 gunicorn
-curl_cffi
+lxml
+numpy
+pandas
+pandas-ta
+yfinance
