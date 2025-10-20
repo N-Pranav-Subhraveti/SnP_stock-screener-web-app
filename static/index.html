@@ -27,6 +27,15 @@
             height: 40px;
             animation: spin 1s linear infinite;
         }
+        /* Fix for TradingView widget container */
+        #tradingview-widget-container {
+            display: flex;
+            flex-direction: column;
+        }
+        #tradingview-chart {
+            flex: 1;
+            min-height: 0; /* Important for flex children */
+        }
     </style>
 </head>
 <body class="bg-black text-gray-200">
@@ -84,10 +93,51 @@
 
                 <!-- Adaptive Filter Card -->
                 <div class="card p-6 rounded-2xl bg-gray-900 border-gray-700">
-                    <div class="flex items-center justify-between">
+                    <div class="flex items-center justify-between mb-4">
                          <h3 class="text-xl font-semibold text-white">Adaptive Trend Filter</h3>
                          <input id="uptrend-filter-checkbox" type="checkbox" class="h-6 w-6 rounded bg-gray-700 border-gray-600 text-blue-500 focus:ring-blue-600">
                     </div>
+                    
+                    <div id="filter-parameters" class="space-y-4 hidden">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-1">Price vs EMA20 (%)</label>
+                                <input type="number" id="price_vs_ema20" value="100" class="w-full input-base rounded-lg p-2 text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-1">Price vs EMA50 (%)</label>
+                                <input type="number" id="price_vs_ema50" value="100" class="w-full input-base rounded-lg p-2 text-sm">
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-1">RSI Min</label>
+                                <input type="number" id="rsi_min" value="35" class="w-full input-base rounded-lg p-2 text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-1">RSI Max</label>
+                                <input type="number" id="rsi_max" value="80" class="w-full input-base rounded-lg p-2 text-sm">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-1">Volume Ratio Min</label>
+                                <input type="number" step="0.1" id="volume_ratio_min" value="0.6" class="w-full input-base rounded-lg p-2 text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-1">Price vs High (%)</label>
+                                <input type="number" id="price_vs_high" value="85" class="w-full input-base rounded-lg p-2 text-sm">
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-1">Required Conditions</label>
+                            <input type="number" id="required_conditions" value="3" min="1" max="5" class="w-full input-base rounded-lg p-2 text-sm">
+                        </div>
+                    </div>
+
                     <div id="filter-explanation" class="mt-4 text-sm text-gray-400 space-y-2">
                          <!-- Dynamic explanation will be injected here -->
                     </div>
@@ -127,10 +177,11 @@
                         </div>
                     </div>
                 </div>
-                <!-- ENLARGED CHART CONTAINER -->
-                <div id="tradingview-widget-container" class="card p-2 rounded-2xl mt-8 hidden" style="height: 700px;">
-                    <h3 id="widget-ticker-title" class="text-xl font-bold p-4 text-white"></h3>
-                    <div id="tradingview-chart" class="h-full w-full"></div>
+                
+                <!-- Fixed Chart Container -->
+                <div id="tradingview-widget-container" class="card rounded-2xl mt-8 hidden flex flex-col" style="height: 700px;">
+                    <h3 id="widget-ticker-title" class="text-xl font-bold p-4 text-white border-b border-gray-700">Chart: </h3>
+                    <div id="tradingview-chart" class="flex-1 w-full"></div>
                 </div>
             </div>
         </main>
@@ -146,6 +197,7 @@
         const uptrendFilterCheckbox = document.getElementById('uptrend-filter-checkbox');
         const runBtn = document.getElementById('run-screener-btn');
         const paramsContainer = document.getElementById('params-container');
+        const filterParameters = document.getElementById('filter-parameters');
         const filterExplanation = document.getElementById('filter-explanation');
 
         const initialMessage = document.getElementById('initial-message');
@@ -159,6 +211,7 @@
         
         const tvWidgetContainer = document.getElementById('tradingview-widget-container');
         const widgetTickerTitle = document.getElementById('widget-ticker-title');
+        const tradingviewChart = document.getElementById('tradingview-chart');
         let tvWidget = null;
 
         const strategyParams = {
@@ -200,53 +253,73 @@
             `
         };
 
+        const filterDefaults = {
+            ma_crossover: {
+                price_vs_ema20: 100,
+                price_vs_ema50: 100,
+                rsi_min: 35,
+                rsi_max: 80,
+                volume_ratio_min: 0.6,
+                price_vs_high: 85,
+                required_conditions: 3
+            },
+            rsi: {
+                price_vs_ema20: 98,
+                price_vs_ema50: 97,
+                rsi_min: 30,
+                rsi_max: 75,
+                volume_ratio_min: 0.7,
+                required_conditions: 3
+            },
+            supertrend: {
+                price_vs_ema50: 95,
+                rsi_min: 25,
+                volume_ratio_min: 0.5,
+                required_conditions: 2
+            },
+            ha_pattern: {
+                price_vs_ema50: 95,
+                rsi_min: 25,
+                volume_ratio_min: 0.5,
+                required_conditions: 2
+            }
+        };
+
         const filterExplanations = {
-            ma_crossover: `
-                <p>This filter is strict, requiring strong trend alignment for a crossover signal.</p>
-                <ul class="list-disc list-inside mt-2">
-                    <li>Price > 20 EMA</li>
-                    <li>Price > 50 EMA</li>
-                    <li>35 < RSI < 80</li>
-                    <li>Volume > 60% of 20-day average</li>
-                    <li>Price is within 85% of 20-day high</li>
-                </ul>
-                <p class="mt-2 font-semibold">Requires 3 of 5 conditions to pass.</p>
-            `,
-            rsi: `
-                <p>This filter is more flexible to catch momentum-based reversal opportunities.</p>
-                <ul class="list-disc list-inside mt-2">
-                    <li>Price > 98% of 20 EMA (allows minor dip)</li>
-                    <li>Price > 97% of 50 EMA</li>
-                    <li>30 < RSI < 75</li>
-                    <li>Volume > 70% of 20-day average</li>
-                </ul>
-                <p class="mt-2 font-semibold">Requires 3 of 4 conditions to pass.</p>
-            `,
-            supertrend: `
-                <p>This filter is lenient, relying on Supertrend's internal logic with minimal external checks.</p>
-                <ul class="list-disc list-inside mt-2">
-                    <li>Price > 95% of 50 EMA</li>
-                    <li>RSI > 25 (not extremely oversold)</li>
-                    <li>Volume > 50% of 20-day average</li>
-                </ul>
-                <p class="mt-2 font-semibold">Requires 2 of 3 conditions to pass.</p>
-            `,
-            ha_pattern: `
-                <p>This filter is lenient, relying on the pattern with minimal external checks.</p>
-                <ul class="list-disc list-inside mt-2">
-                    <li>Price > 95% of 50 EMA</li>
-                    <li>RSI > 25 (not extremely oversold)</li>
-                    <li>Volume > 50% of 20-day average</li>
-                </ul>
-                <p class="mt-2 font-semibold">Requires 2 of 3 conditions to pass.</p>
-            `
+            ma_crossover: `Customize the trend filter thresholds for MA Crossover strategy.`,
+            rsi: `Customize the trend filter thresholds for RSI Oversold strategy.`,
+            supertrend: `Customize the trend filter thresholds for Supertrend strategy.`,
+            ha_pattern: `Customize the trend filter thresholds for Heikin-Ashi Pattern strategy.`
         };
 
         function updateUI() {
             const selectedStrategy = strategySelect.value;
+            
+            // Update strategy parameters
             paramsContainer.innerHTML = strategyParams[selectedStrategy] || '';
+            
+            // Update filter parameters with defaults
+            const defaults = filterDefaults[selectedStrategy];
+            document.getElementById('price_vs_ema20').value = defaults.price_vs_ema20 || 100;
+            document.getElementById('price_vs_ema50').value = defaults.price_vs_ema50 || 100;
+            document.getElementById('rsi_min').value = defaults.rsi_min || 35;
+            document.getElementById('rsi_max').value = defaults.rsi_max || 80;
+            document.getElementById('volume_ratio_min').value = defaults.volume_ratio_min || 0.6;
+            document.getElementById('price_vs_high').value = defaults.price_vs_high || 85;
+            document.getElementById('required_conditions').value = defaults.required_conditions || 3;
+            
+            // Update explanation
             filterExplanation.innerHTML = filterExplanations[selectedStrategy] || '<p>Select a strategy to see its adaptive filter criteria.</p>';
         }
+
+        // Toggle filter parameters visibility
+        uptrendFilterCheckbox.addEventListener('change', function() {
+            if (this.checked) {
+                filterParameters.classList.remove('hidden');
+            } else {
+                filterParameters.classList.add('hidden');
+            }
+        });
 
         strategySelect.addEventListener('change', updateUI);
         
@@ -259,6 +332,7 @@
             runBtn.disabled = true;
             runBtn.textContent = 'Scanning...';
 
+            // Collect strategy parameters
             const params = {};
             const paramInputs = paramsContainer.querySelectorAll('input');
             paramInputs.forEach(input => {
@@ -268,12 +342,25 @@
                 }
             });
 
+            // Collect filter parameters if enabled
+            const filterParams = {};
+            if (uptrendFilterCheckbox.checked) {
+                filterParams.price_vs_ema20 = parseFloat(document.getElementById('price_vs_ema20').value) || 100;
+                filterParams.price_vs_ema50 = parseFloat(document.getElementById('price_vs_ema50').value) || 100;
+                filterParams.rsi_min = parseFloat(document.getElementById('rsi_min').value) || 35;
+                filterParams.rsi_max = parseFloat(document.getElementById('rsi_max').value) || 80;
+                filterParams.volume_ratio_min = parseFloat(document.getElementById('volume_ratio_min').value) || 0.6;
+                filterParams.price_vs_high = parseFloat(document.getElementById('price_vs_high').value) || 85;
+                filterParams.required_conditions = parseInt(document.getElementById('required_conditions').value) || 3;
+            }
+
             const payload = {
                 index: indexSelect.value,
                 timeframe: timeframeSelect.value,
                 strategy: strategySelect.value,
                 applyUptrendFilter: uptrendFilterCheckbox.checked,
-                params: params
+                params: params,
+                filterParams: filterParams
             };
 
             try {
@@ -352,31 +439,36 @@
             widgetTickerTitle.textContent = `Chart: ${ticker}`;
             tvWidgetContainer.classList.remove('hidden');
 
-            const createWidget = () => {
-                if (tvWidget) {
-                    tvWidget.remove();
-                    tvWidget = null;
-                }
-                tvWidget = new TradingView.widget({
-                    "autosize": true,
-                    "symbol": ticker,
-                    "interval": "D",
-                    "timezone": "Etc/UTC",
-                    "theme": "dark",
-                    "style": "1",
-                    "locale": "en",
-                    "toolbar_bg": "#f1f3f6",
-                    "enable_publishing": false,
-                    "allow_symbol_change": true,
-                    "container_id": "tradingview-chart",
-                    "studies": [
-                        "HeikinAshi@tv-basicstudies"
-                    ]
-                });
-            };
+            // Clear previous widget
+            if (tvWidget) {
+                tvWidget.remove();
+                tvWidget = null;
+            }
+
+            // Clear the chart container
+            tradingviewChart.innerHTML = '';
+
+            // Create new widget with proper container reference
+            tvWidget = new TradingView.widget({
+                "width": "100%",
+                "height": "100%",
+                "symbol": ticker,
+                "interval": "D",
+                "timezone": "Etc/UTC",
+                "theme": "dark",
+                "style": "1",
+                "locale": "en",
+                "toolbar_bg": "#f1f3f6",
+                "enable_publishing": false,
+                "hide_side_toolbar": false,
+                "allow_symbol_change": true,
+                "container_id": "tradingview-chart",
+                "studies": [
+                    "HeikinAshi@tv-basicstudies"
+                ]
+            });
 
             tvWidgetContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            setTimeout(createWidget, 300);
         }
 
         updateUI();
