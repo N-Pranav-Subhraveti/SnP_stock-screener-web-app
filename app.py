@@ -67,13 +67,52 @@ def check_rsi_signal(df: pd.DataFrame, params: Dict) -> Tuple[bool, Optional[Dic
     return False, None
 
 def check_supertrend_signal(df: pd.DataFrame, params: Dict) -> Tuple[bool, Optional[Dict[str, Any]]]:
-    length, multiplier = params.get('supertrend_length', 7), params.get('supertrend_multiplier', 3.0)
-    df.ta.supertrend(length=length, multiplier=multiplier, append=True)
-    df.dropna(inplace=True)
-    if df.empty or f'SUPERTd_{length}_{multiplier}' not in df.columns: return False, None
-    if df.iloc[-1][f'SUPERTd_{length}_{multiplier}'] == 1:
-        return True, {"Supertrend": f"{df.iloc[-1][f'SUPERT_{length}_{multiplier}']:.2f}", "Direction": "Up"}
-    return False, None
+    try:
+        length = params.get('supertrend_length', 10)
+        multiplier = params.get('supertrend_multiplier', 3.0)
+        
+        # Calculate supertrend using a more robust method
+        supertrend_df = ta.supertrend(high=df['High'], low=df['Low'], close=df['Close'], 
+                                    length=length, multiplier=multiplier)
+        
+        if supertrend_df is None or supertrend_df.empty:
+            return False, None
+            
+        # Get the column names (they include the parameters in the name)
+        st_col = None
+        st_dir_col = None
+        
+        for col in supertrend_df.columns:
+            if col.startswith('SUPERT_') and not col.endswith('_d'):
+                st_col = col
+            elif col.startswith('SUPERTd_'):
+                st_dir_col = col
+                
+        if st_col is None or st_dir_col is None:
+            return False, None
+            
+        # Merge supertrend data with original dataframe
+        df = pd.concat([df, supertrend_df], axis=1)
+        df.dropna(inplace=True)
+        
+        if df.empty:
+            return False, None
+            
+        # Get the last row
+        last_row = df.iloc[-1]
+        
+        # Check if supertrend direction is up (1) and close is above supertrend line
+        if last_row[st_dir_col] == 1 and last_row['Close'] > last_row[st_col]:
+            return True, {
+                "Supertrend": f"{last_row[st_col]:.2f}", 
+                "Direction": "Up",
+                f"ST_{length}_{multiplier}": f"{last_row[st_col]:.2f}"
+            }
+        return False, None
+        
+    except Exception as e:
+        print(f"Error in supertrend calculation: {e}")
+        return False, None
 
 def filter_by_ha_pattern(df: pd.DataFrame, params: Dict) -> Tuple[bool, Optional[Dict[str, Any]]]:
     pattern = params.get('pattern', 'RRGG')
@@ -224,9 +263,9 @@ def handle_screener_request():
         for i, ticker in enumerate(tickers):
             print(f"Processing {ticker} ({i+1}/{len(tickers)})...")
             try:
-                # Use yf.Ticker for more reliable data
+                # Use yf.Ticker for more reliable data - get more data for better calculations
                 stock = yf.Ticker(ticker)
-                data = stock.history(period="6mo", auto_adjust=True)  # 6 months for speed
+                data = stock.history(period="1y", auto_adjust=True)  # Increased to 1 year for better calculations
                 
                 if data.empty or len(data) < 50:
                     failed_tickers.append(ticker)
