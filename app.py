@@ -190,7 +190,7 @@ def handle_screener_request():
             try:
                 data = yf.download(
                     ticker, 
-                    period="2y",
+                    period="1y",
                     auto_adjust=True, 
                     session=session, 
                     progress=False
@@ -230,4 +230,5 @@ def handle_screener_request():
         return jsonify({"error": "An internal server error. Please try again later."}), 500
 
 if __name__ == '__main__':
+
     app.run(debug=True)
