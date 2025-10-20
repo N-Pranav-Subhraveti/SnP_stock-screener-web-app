@@ -45,7 +45,7 @@ def get_tickers(index_name: str = "S&P 500") -> List[str]:
         print(f"Error fetching {index_name} tickers: {e}")
         return []
 
-# --- Individual Strategy Checkers ---
+# --- Individual Strategy Checkers (Fixed) ---
 def check_ma_crossover_signal(df: pd.DataFrame, params: Dict) -> Tuple[bool, Optional[Dict[str, Any]]]:
     try:
         short_window = params.get('short_window', 50)
@@ -181,20 +181,14 @@ def filter_by_ha_pattern(df: pd.DataFrame, params: Dict) -> Tuple[bool, Optional
         print(f"Error in HA pattern check: {e}")
         return False, None
 
-def check_uptrend_filter(df: pd.DataFrame, strategy_name: str, filter_params: Dict) -> Tuple[bool, Dict[str, Any]]:
+def check_uptrend_filter(df: pd.DataFrame, strategy_name: str) -> Tuple[bool, Dict[str, Any]]:
     try:
-        # Get filter parameters with defaults
-        ema_short_period = filter_params.get('ema_short_period', 20)
-        ema_long_period = filter_params.get('ema_long_period', 50)
-        rsi_period = filter_params.get('rsi_period', 14)
-        volume_period = filter_params.get('volume_period', 20)
-        
         # Calculate technical indicators for trend filtering
-        df['EMA_short'] = ta.ema(df['Close'], length=ema_short_period)
-        df['EMA_long'] = ta.ema(df['Close'], length=ema_long_period)
-        df['RSI'] = ta.rsi(df['Close'], length=rsi_period)
-        df['Volume_Ratio'] = df['Volume'] / df['Volume'].rolling(window=volume_period).mean()
-        df['Price_vs_High'] = df['Close'] / df['High'].rolling(window=volume_period).max()
+        df['EMA_20'] = ta.ema(df['Close'], length=20)
+        df['EMA_50'] = ta.ema(df['Close'], length=50)
+        df['RSI_14'] = ta.rsi(df['Close'], length=14)
+        df['Volume_Ratio'] = df['Volume'] / df['Volume'].rolling(window=20).mean()
+        df['Price_vs_High_20'] = df['Close'] / df['High'].rolling(window=20).max()
         
         df_clean = df.dropna()
         
@@ -203,91 +197,75 @@ def check_uptrend_filter(df: pd.DataFrame, strategy_name: str, filter_params: Di
             
         last = df_clean.iloc[-1]
         price = last['Close']
-        ema_short = last['EMA_short']
-        ema_long = last['EMA_long']
-        rsi = last['RSI']
+        ema_20 = last['EMA_20']
+        ema_50 = last['EMA_50']
+        rsi = last['RSI_14']
         volume_ratio = last['Volume_Ratio']
-        price_vs_high = last['Price_vs_High']
+        price_vs_high = last['Price_vs_High_20']
         
-        # Define conditions based on strategy with user-defined parameters
+        # Define conditions based on strategy
         if strategy_name == 'rsi':
-            price_vs_ema20_threshold = filter_params.get('price_vs_ema20', 98) / 100
-            price_vs_ema50_threshold = filter_params.get('price_vs_ema50', 97) / 100
-            rsi_min = filter_params.get('rsi_min', 30)
-            rsi_max = filter_params.get('rsi_max', 75)
-            volume_ratio_min = filter_params.get('volume_ratio_min', 0.7)
-            required_passes = filter_params.get('required_conditions', 3)
-            
             conditions = {
-                'price_above_ema20': price > ema_short * price_vs_ema20_threshold,
-                'price_above_ema50': price > ema_long * price_vs_ema50_threshold,
-                'rsi_reasonable': rsi_min <= rsi <= rsi_max,
-                'volume_adequate': volume_ratio > volume_ratio_min
+                'price_above_ema20': price > ema_20 * 0.98,
+                'price_above_ema50': price > ema_50 * 0.97,
+                'rsi_reasonable': 30 <= rsi <= 75,
+                'volume_adequate': volume_ratio > 0.7
             }
+            required_passes = 3
             
         elif strategy_name == 'ma_crossover':
-            price_vs_ema20_threshold = filter_params.get('price_vs_ema20', 100) / 100
-            price_vs_ema50_threshold = filter_params.get('price_vs_ema50', 100) / 100
-            rsi_min = filter_params.get('rsi_min', 35)
-            rsi_max = filter_params.get('rsi_max', 80)
-            volume_ratio_min = filter_params.get('volume_ratio_min', 0.6)
-            price_vs_high_threshold = filter_params.get('price_vs_high', 85) / 100
-            required_passes = filter_params.get('required_conditions', 3)
-            
             conditions = {
-                'price_above_ema20': price > ema_short * price_vs_ema20_threshold,
-                'price_above_ema50': price > ema_long * price_vs_ema50_threshold,
-                'rsi_reasonable': rsi_min <= rsi <= rsi_max,
-                'volume_adequate': volume_ratio > volume_ratio_min,
-                'near_highs': price_vs_high > price_vs_high_threshold
+                'price_above_ema20': price > ema_20,
+                'price_above_ema50': price > ema_50,
+                'rsi_reasonable': 35 <= rsi <= 80,
+                'volume_adequate': volume_ratio > 0.6,
+                'near_highs': price_vs_high > 0.85
             }
+            required_passes = 3
             
         elif strategy_name in ['ha_pattern', 'supertrend']:
-            price_vs_ema50_threshold = filter_params.get('price_vs_ema50', 95) / 100
-            rsi_min = filter_params.get('rsi_min', 25)
-            volume_ratio_min = filter_params.get('volume_ratio_min', 0.5)
-            required_passes = filter_params.get('required_conditions', 2)
-            
             conditions = {
-                'price_above_ema50': price > ema_long * price_vs_ema50_threshold,
-                'rsi_not_extreme': rsi > rsi_min,
-                'volume_adequate': volume_ratio > volume_ratio_min
+                'price_above_ema50': price > ema_50 * 0.95,
+                'rsi_not_extreme': rsi > 25,
+                'volume_adequate': volume_ratio > 0.5
             }
+            required_passes = 2
             
         else:
-            price_vs_ema20_threshold = filter_params.get('price_vs_ema20', 98) / 100
-            price_vs_ema50_threshold = filter_params.get('price_vs_ema50', 100) / 100
-            rsi_min = filter_params.get('rsi_min', 30)
-            rsi_max = filter_params.get('rsi_max', 80)
-            volume_ratio_min = filter_params.get('volume_ratio_min', 0.6)
-            required_passes = filter_params.get('required_conditions', 3)
-            
             conditions = {
-                'price_above_ema20': price > ema_short * price_vs_ema20_threshold,
-                'price_above_ema50': price > ema_long * price_vs_ema50_threshold,
-                'rsi_reasonable': rsi_min <= rsi <= rsi_max,
-                'volume_adequate': volume_ratio > volume_ratio_min
+                'price_above_ema20': price > ema_20 * 0.98,
+                'price_above_ema50': price > ema_50,
+                'rsi_reasonable': 30 <= rsi <= 80,
+                'volume_adequate': volume_ratio > 0.6
             }
+            required_passes = 3
             
         pass_count = sum(conditions.values())
         
         if pass_count >= required_passes:
             return True, {
                 "Trend Strength": "Strong" if pass_count == len(conditions) else "Moderate",
-                "Conditions Passed": f"{pass_count}/{len(conditions)}"
+                "Passed Conditions": f"{pass_count}/{len(conditions)}"
             }
+            
         return False, {
             "Trend Strength": "Weak",
-            "Conditions Passed": f"{pass_count}/{len(conditions)}"
+            "Passed Conditions": f"{pass_count}/{len(conditions)}"
         }
         
     except Exception as e:
         print(f"Error in uptrend filter: {e}")
         return False, {"Error": str(e)}
 
-def process_ticker_data(ticker: str, data: pd.DataFrame, strategy: str, params: Dict, timeframe: str, apply_uptrend_filter: bool, filter_params: Dict) -> Optional[Dict[str, Any]]:
+def process_ticker_data(ticker: str, data: pd.DataFrame, strategy: str, params: Dict, timeframe: str, apply_uptrend_filter: bool) -> Optional[Dict[str, Any]]:
     try:
-        if data.empty or len(data) < 50:
+        # Debug: Print data info for specific tickers
+        if ticker in ['GILD', 'AAPL', 'MSFT']:
+            print(f"DEBUG {ticker}: Data length: {len(data)}, Columns: {list(data.columns)}")
+        
+        if data.empty or len(data) < 50:  # Increased minimum data requirement
+            if ticker in ['GILD', 'AAPL', 'MSFT']:
+                print(f"DEBUG {ticker}: Insufficient data - {len(data)} rows")
             return None
             
         # Handle timeframe resampling
@@ -308,6 +286,7 @@ def process_ticker_data(ticker: str, data: pd.DataFrame, strategy: str, params: 
         # Ensure we have the required columns
         required_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
         if not all(col in data.columns for col in required_columns):
+            print(f"Missing required columns for {ticker}: {list(data.columns)}")
             return None
             
         strategy_funcs = {
@@ -323,14 +302,19 @@ def process_ticker_data(ticker: str, data: pd.DataFrame, strategy: str, params: 
         # Apply strategy
         is_signal, signal_data = strategy_funcs[strategy](data.copy(), params)
         
+        if ticker in ['GILD', 'AAPL', 'MSFT']:
+            print(f"DEBUG {ticker} {strategy}: Signal={is_signal}, Data={signal_data}")
+        
         if not is_signal:
             return None
             
         # Apply uptrend filter if enabled
         uptrend_data = {}
         if apply_uptrend_filter:
-            is_uptrend, uptrend_data = check_uptrend_filter(data.copy(), strategy, filter_params)
+            is_uptrend, uptrend_data = check_uptrend_filter(data.copy(), strategy)
             if not is_uptrend:
+                if ticker in ['GILD', 'AAPL', 'MSFT']:
+                    print(f"DEBUG {ticker}: Uptrend filter failed - {uptrend_data}")
                 return None
         
         # Build result
@@ -345,10 +329,15 @@ def process_ticker_data(ticker: str, data: pd.DataFrame, strategy: str, params: 
         if uptrend_data:
             result.update(uptrend_data)
             
+        if ticker in ['GILD', 'AAPL', 'MSFT']:
+            print(f"DEBUG {ticker}: FINAL RESULT - {result}")
+            
         return result
         
     except Exception as e:
         print(f"  -> Error processing {ticker} ({strategy}): {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 # --- Main API Endpoint ---
@@ -357,10 +346,7 @@ def handle_screener_request():
     try:
         req_data = request.get_json()
         params = req_data.get('params', {})
-        filter_params = req_data.get('filterParams', {})
-        apply_uptrend_filter = req_data.get('applyUptrendFilter', False)
-        
-        print(f"Request: {req_data.get('index')}, {req_data.get('strategy')}, Params: {params}, Uptrend: {apply_uptrend_filter}, FilterParams: {filter_params}")
+        print(f"Request: {req_data.get('index')}, {req_data.get('strategy')}, Params: {params}, Uptrend: {req_data.get('applyUptrendFilter')}")
         
         tickers = get_tickers(req_data.get('index'))
         if not tickers:
@@ -376,7 +362,7 @@ def handle_screener_request():
             try:
                 # Use yf.Ticker for more reliable data
                 stock = yf.Ticker(ticker)
-                data = stock.history(period="1y", auto_adjust=True)
+                data = stock.history(period="1y", auto_adjust=True)  # Increased to 1 year for better indicators
                 
                 if data.empty:
                     failed_tickers.append(ticker)
@@ -387,8 +373,7 @@ def handle_screener_request():
                     req_data.get('strategy'), 
                     params, 
                     req_data.get('timeframe'), 
-                    apply_uptrend_filter,
-                    filter_params
+                    req_data.get('applyUptrendFilter')
                 )
                 if result:
                     matching_stocks.append(result)
