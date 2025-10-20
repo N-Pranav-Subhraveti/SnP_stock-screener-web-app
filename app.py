@@ -182,19 +182,15 @@ def handle_screener_request():
 
         matching_stocks, failed_tickers = [], []
         
-        # Process a limited number of tickers to avoid timeout
-        max_tickers = 50  # Limit for free tier
-        tickers_to_process = tickers[:max_tickers]
+        # Process all tickers without limitations
+        print(f"Processing all {len(tickers)} tickers...")
         
-        print(f"Processing first {len(tickers_to_process)} tickers (limited for free tier)...")
-        
-        for i, ticker in enumerate(tickers_to_process):
-            print(f"Processing {ticker} ({i+1}/{len(tickers_to_process)})...")
+        for i, ticker in enumerate(tickers):
+            print(f"Processing {ticker} ({i+1}/{len(tickers)})...")
             try:
-                # Add timeout to yfinance download
                 data = yf.download(
                     ticker, 
-                    period="1y",  # Reduced from 2y to 1y for faster processing
+                    period="2y",
                     auto_adjust=True, 
                     session=session, 
                     progress=False
@@ -215,7 +211,7 @@ def handle_screener_request():
                     matching_stocks.append(result)
 
                 # Small delay to be gentle on APIs
-                time.sleep(0.1)
+                time.sleep(0.05)
                 
             except Exception as e:
                 print(f"  -> Failed to download or process {ticker}: {e}")
@@ -224,10 +220,9 @@ def handle_screener_request():
         print(f"Scan complete. Found {len(matching_stocks)} matching stocks.")
         return jsonify({
             "matching_stocks": matching_stocks,
-            "total_scanned": len(tickers_to_process) - len(failed_tickers),
+            "total_scanned": len(tickers) - len(failed_tickers),
             "total_in_index": len(tickers),
-            "failed_tickers": failed_tickers,
-            "note": f"Limited to first {max_tickers} tickers due to free tier constraints"
+            "failed_tickers": failed_tickers
         })
 
     except Exception as e:

@@ -97,12 +97,6 @@
                     Run Screener
                 </button>
 
-                <!-- Free Tier Notice -->
-                <div class="bg-yellow-900/20 border border-yellow-500/30 rounded-lg p-4">
-                    <p class="text-yellow-400 text-sm font-semibold">Free Tier Notice</p>
-                    <p class="text-yellow-300 text-xs mt-1">Limited to first 50 stocks for faster results. Upgrade for full index scanning.</p>
-                </div>
-
             </div>
 
             <!-- Right Column: Results -->
@@ -133,7 +127,8 @@
                         </div>
                     </div>
                 </div>
-                <div id="tradingview-widget-container" class="card p-2 rounded-2xl mt-8 hidden" style="height: 500px;">
+                <!-- ENLARGED CHART CONTAINER -->
+                <div id="tradingview-widget-container" class="card p-2 rounded-2xl mt-8 hidden" style="height: 700px;">
                     <h3 id="widget-ticker-title" class="text-xl font-bold p-4 text-white"></h3>
                     <div id="tradingview-chart" class="h-full w-full"></div>
                 </div>
@@ -313,10 +308,6 @@
             let statsHtml = `Found <strong>${data.matching_stocks.length}</strong> matching stocks. `;
             statsHtml += `Scanned ${data.total_scanned} of ${data.total_in_index} in the index.`;
             
-            if (data.note) {
-                statsHtml += `<br><span class="text-yellow-400 text-sm">${data.note}</span>`;
-            }
-            
             if (data.failed_tickers && data.failed_tickers.length > 0) {
                 statsHtml += `<br><span class="text-yellow-400 text-sm">(${data.failed_tickers.length} failed to load)</span>`;
             }
@@ -377,7 +368,10 @@
                     "toolbar_bg": "#f1f3f6",
                     "enable_publishing": false,
                     "allow_symbol_change": true,
-                    "container_id": "tradingview-chart"
+                    "container_id": "tradingview-chart",
+                    "studies": [
+                        "HeikinAshi@tv-basicstudies"
+                    ]
                 });
             };
 
