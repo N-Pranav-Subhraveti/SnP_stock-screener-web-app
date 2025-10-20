@@ -46,7 +46,7 @@ def get_tickers(index_name: str = "S&P 500") -> List[str]:
         print(f"Error fetching {index_name} tickers: {e}")
         return []
 
-# --- Individual Strategy Checkers (No changes needed) ---
+# --- Individual Strategy Checkers ---
 def check_ma_crossover_signal(df: pd.DataFrame, params: Dict) -> Tuple[bool, Optional[Dict[str, Any]]]:
     short_window, long_window = params.get('short_window', 50), params.get('long_window', 200)
     df[f'SMA{short_window}'] = df['Close'].rolling(window=short_window).mean()
@@ -115,33 +115,60 @@ def check_uptrend_filter(df: pd.DataFrame, strategy_name: str) -> Tuple[bool, Di
     return False, {"Trend Strength": "Weak"}
 
 def process_ticker_data(ticker: str, data: pd.DataFrame, strategy: str, params: Dict, timeframe: str, apply_uptrend_filter: bool) -> Optional[Dict[str, Any]]:
-    # This function now only processes data for a single ticker
     try:
-        if data.empty or len(data) < 52: return None
+        # Handle MultiIndex from yfinance - convert to regular DataFrame
+        if isinstance(data.columns, pd.MultiIndex):
+            data.columns = data.columns.get_level_values(0)
+        
+        if data.empty or len(data) < 52:
+            return None
+            
         if timeframe == 'weekly':
-            if not isinstance(data.index, pd.DatetimeIndex): data.index = pd.to_datetime(data.index)
-            data = data.resample('W').agg({'Open':'first', 'High':'max', 'Low':'min', 'Close':'last', 'Volume':'sum'}).dropna()
-            if len(data) < 52: return None
+            if not isinstance(data.index, pd.DatetimeIndex):
+                data.index = pd.to_datetime(data.index)
+            data = data.resample('W').agg({
+                'Open': 'first', 
+                'High': 'max', 
+                'Low': 'min', 
+                'Close': 'last', 
+                'Volume': 'sum'
+            }).dropna()
+            if len(data) < 52:
+                return None
+                
         strategy_funcs = {
-            'ma_crossover': check_ma_crossover_signal, 'rsi': check_rsi_signal,
-            'supertrend': check_supertrend_signal, 'ha_pattern': filter_by_ha_pattern
+            'ma_crossover': check_ma_crossover_signal,
+            'rsi': check_rsi_signal,
+            'supertrend': check_supertrend_signal,
+            'ha_pattern': filter_by_ha_pattern
         }
-        if strategy not in strategy_funcs: return None
+        
+        if strategy not in strategy_funcs:
+            return None
+            
         is_signal, signal_data = strategy_funcs[strategy](data.copy(), params)
-        if not is_signal: return None
+        if not is_signal:
+            return None
+            
         uptrend_data = {}
         if apply_uptrend_filter:
             is_uptrend, uptrend_data = check_uptrend_filter(data.copy(), strategy)
-            if not is_uptrend: return None
+            if not is_uptrend:
+                return None
+                
         result = {'Ticker': ticker, 'Close': f"${data.iloc[-1]['Close']:.2f}"}
-        if signal_data: result.update(signal_data)
-        if uptrend_data: result.update(uptrend_data)
+        if signal_data:
+            result.update(signal_data)
+        if uptrend_data:
+            result.update(uptrend_data)
+            
         return result
+        
     except Exception as e:
         print(f"  -> Error processing {ticker}: {e}")
         return None
 
-# --- Main API Endpoint (Re-architected for Ultimate Robustness) ---
+# --- Main API Endpoint ---
 @app.route('/run-screener', methods=['POST'])
 def handle_screener_request():
     try:
@@ -150,25 +177,46 @@ def handle_screener_request():
         print(f"Request: {req_data.get('index')}, {req_data.get('strategy')}, Params: {params}, Uptrend: {req_data.get('applyUptrendFilter')}")
         
         tickers = get_tickers(req_data.get('index'))
-        if not tickers: return jsonify({"error": f"Could not fetch tickers for {req_data.get('index')}."}), 500
+        if not tickers:
+            return jsonify({"error": f"Could not fetch tickers for {req_data.get('index')}."}), 500
 
         matching_stocks, failed_tickers = [], []
         
-        # --- KEY CHANGE: One-stock-at-a-time processing ---
-        for i, ticker in enumerate(tickers):
-            print(f"Processing {ticker} ({i+1}/{len(tickers)})...")
+        # Process a limited number of tickers to avoid timeout
+        max_tickers = 50  # Limit for free tier
+        tickers_to_process = tickers[:max_tickers]
+        
+        print(f"Processing first {len(tickers_to_process)} tickers (limited for free tier)...")
+        
+        for i, ticker in enumerate(tickers_to_process):
+            print(f"Processing {ticker} ({i+1}/{len(tickers_to_process)})...")
             try:
-                data = yf.download(ticker, period="2y", auto_adjust=True, session=session, progress=False)
+                # Add timeout to yfinance download
+                data = yf.download(
+                    ticker, 
+                    period="1y",  # Reduced from 2y to 1y for faster processing
+                    auto_adjust=True, 
+                    session=session, 
+                    progress=False
+                )
+                
                 if data.empty:
                     failed_tickers.append(ticker)
                     continue
 
-                result = process_ticker_data(ticker, data, req_data.get('strategy'), params, req_data.get('timeframe'), req_data.get('applyUptrendFilter'))
+                result = process_ticker_data(
+                    ticker, data, 
+                    req_data.get('strategy'), 
+                    params, 
+                    req_data.get('timeframe'), 
+                    req_data.get('applyUptrendFilter')
+                )
                 if result:
                     matching_stocks.append(result)
 
-                # Micro-delay to be gentle on the API
-                time.sleep(0.05) 
+                # Small delay to be gentle on APIs
+                time.sleep(0.1)
+                
             except Exception as e:
                 print(f"  -> Failed to download or process {ticker}: {e}")
                 failed_tickers.append(ticker)
@@ -176,9 +224,10 @@ def handle_screener_request():
         print(f"Scan complete. Found {len(matching_stocks)} matching stocks.")
         return jsonify({
             "matching_stocks": matching_stocks,
-            "total_scanned": len(tickers) - len(failed_tickers),
+            "total_scanned": len(tickers_to_process) - len(failed_tickers),
             "total_in_index": len(tickers),
-            "failed_tickers": failed_tickers
+            "failed_tickers": failed_tickers,
+            "note": f"Limited to first {max_tickers} tickers due to free tier constraints"
         })
 
     except Exception as e:
@@ -187,4 +236,3 @@ def handle_screener_request():
 
 if __name__ == '__main__':
     app.run(debug=True)
-
