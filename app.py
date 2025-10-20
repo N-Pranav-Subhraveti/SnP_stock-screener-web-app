@@ -5,8 +5,7 @@ import yfinance as yf
 from curl_cffi import requests as curl_requests
 import pandas_ta as ta
 import io
-import numpy as np
-import time
+import time 
 from typing import Dict, Any, Tuple, Optional, List
 
 # Initialize Flask App
@@ -19,25 +18,42 @@ session = curl_requests.Session(impersonate="chrome110")
 def serve_index():
     return send_from_directory(app.static_folder, 'index.html')
 
-# --- Helper & Data Logic ---
+# --- Helper & Data Logic (with Robust Ticker Fetching) ---
 def get_tickers(index_name: str = "S&P 500") -> List[str]:
+    # --- THIS IS THE FIX ---
+    # Wikipedia frequently changes column names. This logic now tries multiple
+    # common names to make the scraper more robust.
     wiki_pages = {
-        "S&P 500": {'url': 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies', 'ticker_col': 'Symbol'},
-        "S&P 100": {'url': 'https://en.wikipedia.org/wiki/S%26P_100', 'ticker_col': 'Ticker symbol'}
+        "S&P 500": {'url': 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies', 'possible_cols': ['Symbol']},
+        "S&P 100": {'url': 'https://en.wikipedia.org/wiki/S%26P_100', 'possible_cols': ['Symbol', 'Ticker symbol']}
     }
+    # --- END FIX ---
     if index_name not in wiki_pages: return []
     try:
         page_info = wiki_pages[index_name]
         headers = {'User-Agent': 'Mozilla/5.0'}
         response = session.get(page_info['url'], headers=headers)
         response.raise_for_status()
-        tables = pd.read_html(io.StringIO(response.text), match=page_info['ticker_col'])
-        if not tables:
-            raise ValueError(f"Could not find ticker table for {index_name}.")
-        index_table = tables[0]
-        if isinstance(index_table.columns, pd.MultiIndex):
-            index_table.columns = index_table.columns.get_level_values(0)
-        return index_table[page_info['ticker_col']].str.replace('.', '-', regex=False).tolist()
+        
+        table = None
+        found_col = None
+        for col_name in page_info['possible_cols']:
+            try:
+                tables = pd.read_html(io.StringIO(response.text), match=col_name, flavor='lxml')
+                if tables:
+                    table = tables[0]
+                    found_col = col_name
+                    break
+            except ValueError:
+                continue # This column name was not found, try the next one
+
+        if table is None or found_col is None:
+             raise ValueError(f"Could not find a valid ticker table for {index_name}.")
+        
+        if isinstance(table.columns, pd.MultiIndex):
+            table.columns = table.columns.get_level_values(0)
+            
+        return table[found_col].str.replace('.', '-', regex=False).tolist()
     except Exception as e:
         print(f"Error fetching {index_name} tickers: {e}")
         return []
@@ -94,43 +110,45 @@ def check_uptrend_filter(df: pd.DataFrame, strategy_name: str) -> Tuple[bool, Di
     price, ema_20, ema_50, rsi = last['Close'], last['EMA_20'], last['EMA_50'], last['RSI_14']
     volume_ratio, price_vs_high = last['Volume_Ratio'], last['Price_vs_High_20']
     if strategy_name == 'rsi':
-        conditions = {'price_above_ema20': price > ema_20*0.98, 'price_above_ema50': price > ema_50*0.97, 'rsi_reasonable': 30<=rsi<=75, 'volume_adequate': volume_ratio>0.7}
+        conditions = {'price_above_ema20': price>ema_20*0.98, 'price_above_ema50': price>ema_50*0.97, 'rsi_reasonable': 30<=rsi<=75, 'volume_adequate': volume_ratio>0.7}
         required_passes = 3
     elif strategy_name == 'ma_crossover':
-        conditions = {'price_above_ema20': price > ema_20, 'price_above_ema50': price > ema_50, 'rsi_reasonable': 35<=rsi<=80, 'volume_adequate': volume_ratio>0.6, 'near_highs': price_vs_high>0.85}
+        conditions = {'price_above_ema20': price>ema_20, 'price_above_ema50': price>ema_50, 'rsi_reasonable': 35<=rsi<=80, 'volume_adequate': volume_ratio>0.6, 'near_highs': price_vs_high>0.85}
         required_passes = 3
     elif strategy_name in ['ha_pattern', 'supertrend']:
-        conditions = {'price_above_ema50': price > ema_50*0.95, 'rsi_not_extreme': rsi>25, 'volume_adequate': volume_ratio>0.5}
+        conditions = {'price_above_ema50': price>ema_50*0.95, 'rsi_not_extreme': rsi>25, 'volume_adequate': volume_ratio>0.5}
         required_passes = 2
-    else: # Default balanced approach
-        conditions = {'price_above_ema20': price > ema_20*0.98, 'price_above_ema50': price > ema_50, 'rsi_reasonable': 30<=rsi<=80, 'volume_adequate': volume_ratio > 0.6}
+    else:
+        conditions = {'price_above_ema20': price>ema_20*0.98, 'price_above_ema50': price>ema_50, 'rsi_reasonable': 30<=rsi<=80, 'volume_adequate': volume_ratio > 0.6}
         required_passes = 3
 
     pass_count = sum(conditions.values())
     if pass_count >= required_passes:
-        trend_strength = "Strong" if pass_count == len(conditions) else "Moderate"
-        return True, {"Trend Strength": trend_strength}
-    else:
-        return False, {"Trend Strength": "Weak"}
+        return True, {"Trend Strength": "Strong" if pass_count == len(conditions) else "Moderate"}
+    return False, {"Trend Strength": "Weak"}
 
 def process_ticker_data(ticker: str, data: pd.DataFrame, strategy: str, params: Dict, timeframe: str, apply_uptrend_filter: bool) -> Optional[Dict[str, Any]]:
     try:
         if data.empty or len(data) < 52: return None
         if timeframe == 'weekly':
             if not isinstance(data.index, pd.DatetimeIndex): data.index = pd.to_datetime(data.index)
-            data = data.resample('W').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'}).dropna()
+            data = data.resample('W').agg({'Open':'first', 'High':'max', 'Low':'min', 'Close':'last', 'Volume':'sum'}).dropna()
             if len(data) < 52: return None
+        
         strategy_funcs = {
             'ma_crossover': check_ma_crossover_signal, 'rsi': check_rsi_signal,
             'supertrend': check_supertrend_signal, 'ha_pattern': filter_by_ha_pattern
         }
         if strategy not in strategy_funcs: return None
+        
         is_signal, signal_data = strategy_funcs[strategy](data.copy(), params)
         if not is_signal: return None
+        
         uptrend_data = {}
         if apply_uptrend_filter:
             is_uptrend, uptrend_data = check_uptrend_filter(data.copy(), strategy)
             if not is_uptrend: return None
+            
         result = {'Ticker': ticker, 'Close': f"${data.iloc[-1]['Close']:.2f}"}
         if signal_data: result.update(signal_data)
         if uptrend_data: result.update(uptrend_data)
@@ -139,7 +157,6 @@ def process_ticker_data(ticker: str, data: pd.DataFrame, strategy: str, params: 
         print(f"  -> Error processing {ticker}: {e}")
         return None
 
-# --- Main API Endpoint (Re-architected for Extreme CPU/Memory Constraints) ---
 @app.route('/run-screener', methods=['POST'])
 def handle_screener_request():
     try:
@@ -150,20 +167,16 @@ def handle_screener_request():
         tickers = get_tickers(req_data.get('index'))
         if not tickers: return jsonify({"error": f"Could not fetch tickers for {req_data.get('index')}."}), 500
 
-        matching_stocks = []
-        failed_tickers = []
-        total_scanned = 0
+        matching_stocks, failed_tickers, total_scanned = [], [], 0
         
-        chunk_size = 50 
+        chunk_size = 30 
         ticker_chunks = [tickers[i:i + chunk_size] for i in range(0, len(tickers), chunk_size)]
 
         for i, chunk in enumerate(ticker_chunks):
-            print(f"Processing chunk {i+1}/{len(ticker_chunks)} ({len(chunk)} tickers)...")
+            print(f"Processing micro-batch {i+1}/{len(ticker_chunks)} ({len(chunk)} tickers)...")
             
             all_data = yf.download(chunk, period="2y", auto_adjust=True, session=session, progress=False, group_by='ticker')
             
-            # --- SINGLE-THREADED PROCESSING ---
-            # Replaced ThreadPoolExecutor with a simple loop for stability
             ticker_data_map = {t: all_data[t] for t in chunk if isinstance(all_data.get(t), pd.DataFrame) and not all_data.get(t).empty}
             total_scanned += len(ticker_data_map)
             failed_tickers.extend(list(set(chunk) - set(ticker_data_map.keys())))
@@ -173,8 +186,8 @@ def handle_screener_request():
                 if result:
                     matching_stocks.append(result)
             
-            # Strategic delay to give the server a break
-            time.sleep(1)
+            print(f"Batch {i+1} complete. Pausing for 2 seconds...")
+            time.sleep(2)
 
         print(f"Scan complete. Found {len(matching_stocks)} matching stocks.")
         return jsonify({
@@ -186,7 +199,7 @@ def handle_screener_request():
 
     except Exception as e:
         print(f"[SERVER ERROR] An unexpected error occurred: {e}")
-        return jsonify({"error": "An internal server error. This can happen if a data source is temporarily unavailable."}), 500
+        return jsonify({"error": "An internal server error. Please try again later."}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
