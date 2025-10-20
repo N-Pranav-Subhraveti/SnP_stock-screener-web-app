@@ -29,12 +29,52 @@
         }
         /* Fix for TradingView widget container */
         #tradingview-widget-container {
-            display: flex;
+            display: none; /* Hidden by default */
             flex-direction: column;
+        }
+        #tradingview-widget-container.visible {
+            display: flex; /* Show when visible class is added */
         }
         #tradingview-chart {
             flex: 1;
-            min-height: 0; /* Important for flex children */
+            min-height: 0;
+        }
+        /* Tooltip styles */
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 300px;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 8px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -150px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+        .tooltip .tooltiptext::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: #333 transparent transparent transparent;
         }
     </style>
 </head>
@@ -100,41 +140,72 @@
                     
                     <div id="filter-parameters" class="space-y-4 hidden">
                         <div class="grid grid-cols-2 gap-4">
-                            <div>
+                            <div class="tooltip">
                                 <label class="block text-sm font-medium text-gray-300 mb-1">Price vs EMA20 (%)</label>
-                                <input type="number" id="price_vs_ema20" value="100" class="w-full input-base rounded-lg p-2 text-sm">
+                                <input type="number" id="price_vs_ema20" value="98" class="w-full input-base rounded-lg p-2 text-sm">
+                                <span class="tooltiptext">
+                                    <strong>Price vs 20-Day EMA:</strong> Minimum percentage of current price relative to the 20-day Exponential Moving Average. 
+                                    Value of 100 means price must be above EMA20. Lower values (95-99) allow price to be slightly below EMA20 while still considering uptrend.
+                                </span>
                             </div>
-                            <div>
+                            <div class="tooltip">
                                 <label class="block text-sm font-medium text-gray-300 mb-1">Price vs EMA50 (%)</label>
-                                <input type="number" id="price_vs_ema50" value="100" class="w-full input-base rounded-lg p-2 text-sm">
+                                <input type="number" id="price_vs_ema50" value="97" class="w-full input-base rounded-lg p-2 text-sm">
+                                <span class="tooltiptext">
+                                    <strong>Price vs 50-Day EMA:</strong> Minimum percentage of current price relative to the 50-day Exponential Moving Average. 
+                                    Value of 100 means price must be above EMA50. Lower values (90-98) allow price to be further below EMA50 while maintaining trend strength assessment.
+                                </span>
                             </div>
                         </div>
                         
                         <div class="grid grid-cols-2 gap-4">
-                            <div>
+                            <div class="tooltip">
                                 <label class="block text-sm font-medium text-gray-300 mb-1">RSI Min</label>
-                                <input type="number" id="rsi_min" value="35" class="w-full input-base rounded-lg p-2 text-sm">
+                                <input type="number" id="rsi_min" value="30" class="w-full input-base rounded-lg p-2 text-sm">
+                                <span class="tooltiptext">
+                                    <strong>RSI Minimum:</strong> Lowest acceptable RSI value. Prevents selecting stocks that are extremely oversold (RSI < 20-30) which might indicate strong downtrend. 
+                                    Higher values (25-40) avoid deeply oversold conditions.
+                                </span>
                             </div>
-                            <div>
+                            <div class="tooltip">
                                 <label class="block text-sm font-medium text-gray-300 mb-1">RSI Max</label>
-                                <input type="number" id="rsi_max" value="80" class="w-full input-base rounded-lg p-2 text-sm">
+                                <input type="number" id="rsi_max" value="75" class="w-full input-base rounded-lg p-2 text-sm">
+                                <span class="tooltiptext">
+                                    <strong>RSI Maximum:</strong> Highest acceptable RSI value. Prevents selecting stocks that are overbought (RSI > 70-80). 
+                                    Lower values (65-75) ensure stock has room to grow without being overextended.
+                                </span>
                             </div>
                         </div>
 
                         <div class="grid grid-cols-2 gap-4">
-                            <div>
+                            <div class="tooltip">
                                 <label class="block text-sm font-medium text-gray-300 mb-1">Volume Ratio Min</label>
-                                <input type="number" step="0.1" id="volume_ratio_min" value="0.6" class="w-full input-base rounded-lg p-2 text-sm">
+                                <input type="number" step="0.1" id="volume_ratio_min" value="0.7" class="w-full input-base rounded-lg p-2 text-sm">
+                                <span class="tooltiptext">
+                                    <strong>Volume Ratio Minimum:</strong> Minimum ratio of current volume compared to 20-day average volume. 
+                                    Values above 1.0 indicate above-average volume (strong interest). 
+                                    Values 0.7-1.0 allow normal to slightly below-average volume while still confirming trend.
+                                </span>
                             </div>
-                            <div>
+                            <div class="tooltip">
                                 <label class="block text-sm font-medium text-gray-300 mb-1">Price vs High (%)</label>
-                                <input type="number" id="price_vs_high" value="85" class="w-full input-base rounded-lg p-2 text-sm">
+                                <input type="number" id="price_vs_high" value="80" class="w-full input-base rounded-lg p-2 text-sm">
+                                <span class="tooltiptext">
+                                    <strong>Price vs 20-Day High:</strong> Percentage of current price relative to the 20-day high. 
+                                    Value of 100 means price is at 20-day highs. Lower values (75-95) allow stock to be further from recent highs while still in uptrend.
+                                    Helps identify stocks with potential breakout opportunities.
+                                </span>
                             </div>
                         </div>
                         
-                        <div>
+                        <div class="tooltip">
                             <label class="block text-sm font-medium text-gray-300 mb-1">Required Conditions</label>
                             <input type="number" id="required_conditions" value="3" min="1" max="5" class="w-full input-base rounded-lg p-2 text-sm">
+                            <span class="tooltiptext">
+                                <strong>Required Conditions:</strong> Number of trend conditions that must be met for a stock to pass the filter. 
+                                Higher values (3-5) make screening stricter. Lower values (1-2) make it more lenient.
+                                Each strategy has different total available conditions (MA Crossover: 5, RSI: 4, Supertrend/Heikin-Ashi: 3).
+                            </span>
                         </div>
                     </div>
 
@@ -178,9 +249,12 @@
                     </div>
                 </div>
                 
-                <!-- Fixed Chart Container -->
-                <div id="tradingview-widget-container" class="card rounded-2xl mt-8 hidden flex flex-col" style="height: 700px;">
-                    <h3 id="widget-ticker-title" class="text-xl font-bold p-4 text-white border-b border-gray-700">Chart: </h3>
+                <!-- Chart Container - Hidden by Default -->
+                <div id="tradingview-widget-container" class="card rounded-2xl mt-8 flex flex-col" style="height: 700px;">
+                    <div class="flex justify-between items-center p-4 border-b border-gray-700">
+                        <h3 id="widget-ticker-title" class="text-xl font-bold text-white">Chart: </h3>
+                        <button id="close-chart-btn" class="text-gray-400 hover:text-white text-lg font-bold">&times;</button>
+                    </div>
                     <div id="tradingview-chart" class="flex-1 w-full"></div>
                 </div>
             </div>
@@ -199,6 +273,7 @@
         const paramsContainer = document.getElementById('params-container');
         const filterParameters = document.getElementById('filter-parameters');
         const filterExplanation = document.getElementById('filter-explanation');
+        const closeChartBtn = document.getElementById('close-chart-btn');
 
         const initialMessage = document.getElementById('initial-message');
         const loadingSpinner = document.getElementById('loading-spinner');
@@ -216,80 +291,115 @@
 
         const strategyParams = {
             ma_crossover: `
-                <div>
+                <div class="tooltip">
                     <label class="block text-sm font-medium text-gray-300 mb-1">Short Window</label>
                     <input type="number" id="short_window" value="50" class="w-full input-base rounded-lg p-3 text-base">
+                    <span class="tooltiptext">
+                        <strong>Short Moving Average Period:</strong> Number of periods for the shorter moving average (typically 20-50 days).
+                        When this MA crosses above the long MA, it generates a bullish signal.
+                    </span>
                 </div>
-                <div>
+                <div class="tooltip">
                     <label class="block text-sm font-medium text-gray-300 mb-1">Long Window</label>
                     <input type="number" id="long_window" value="200" class="w-full input-base rounded-lg p-3 text-base">
+                    <span class="tooltiptext">
+                        <strong>Long Moving Average Period:</strong> Number of periods for the longer moving average (typically 100-200 days).
+                        Represents the longer-term trend direction.
+                    </span>
                 </div>
             `,
             rsi: `
-                <div>
+                <div class="tooltip">
                     <label class="block text-sm font-medium text-gray-300 mb-1">RSI Length</label>
                     <input type="number" id="rsi_length" value="14" class="w-full input-base rounded-lg p-3 text-base">
+                    <span class="tooltiptext">
+                        <strong>RSI Period:</strong> Number of periods used to calculate RSI (typically 14).
+                        Shorter periods (7-10) make RSI more sensitive, longer periods (20-25) make it smoother.
+                    </span>
                 </div>
-                <div>
+                <div class="tooltip">
                     <label class="block text-sm font-medium text-gray-300 mb-1">Oversold Level</label>
                     <input type="number" id="rsi_threshold" value="30" class="w-full input-base rounded-lg p-3 text-base">
+                    <span class="tooltiptext">
+                        <strong>Oversold Threshold:</strong> RSI level below which a stock is considered oversold (typically 30).
+                        Lower values (20-25) identify deeply oversold conditions, higher values (35-40) catch earlier reversals.
+                    </span>
                 </div>
             `,
             supertrend: `
-                <div>
+                <div class="tooltip">
                     <label class="block text-sm font-medium text-gray-300 mb-1">Length</label>
                     <input type="number" id="supertrend_length" value="7" class="w-full input-base rounded-lg p-3 text-base">
+                    <span class="tooltiptext">
+                        <strong>Supertrend ATR Period:</strong> Number of periods for Average True Range calculation (typically 7-10).
+                        Shorter periods make the indicator more sensitive to recent volatility.
+                    </span>
                 </div>
-                <div>
+                <div class="tooltip">
                     <label class="block text-sm font-medium text-gray-300 mb-1">Multiplier</label>
                     <input type="number" step="0.1" id="supertrend_multiplier" value="3.0" class="w-full input-base rounded-lg p-3 text-base">
+                    <span class="tooltiptext">
+                        <strong>ATR Multiplier:</strong> Multiplier applied to ATR to set distance from price (typically 2.0-4.0).
+                        Higher values create wider bands, making signals less frequent but more reliable.
+                    </span>
                 </div>
             `,
             ha_pattern: `
-                <div>
+                <div class="tooltip">
                     <label class="block text-sm font-medium text-gray-300 mb-1">Candle Pattern (e.g., RRGG)</label>
                     <input type="text" id="pattern" value="RRGG" class="w-full input-base rounded-lg p-3 text-base">
+                    <span class="tooltiptext">
+                        <strong>Heikin-Ashi Pattern:</strong> Sequence of candle colors (R=Red, G=Green) to match.
+                        Example: "RRGG" looks for two red candles followed by two green candles, indicating potential trend reversal.
+                        Common patterns: "RGG" (reversal), "GGGG" (strong uptrend), "RRG" (potential bottom).
+                    </span>
                 </div>
             `
         };
 
         const filterDefaults = {
             ma_crossover: {
-                price_vs_ema20: 100,
-                price_vs_ema50: 100,
-                rsi_min: 35,
-                rsi_max: 80,
-                volume_ratio_min: 0.6,
-                price_vs_high: 85,
-                required_conditions: 3
-            },
-            rsi: {
                 price_vs_ema20: 98,
                 price_vs_ema50: 97,
                 rsi_min: 30,
                 rsi_max: 75,
                 volume_ratio_min: 0.7,
+                price_vs_high: 80,
                 required_conditions: 3
             },
-            supertrend: {
-                price_vs_ema50: 95,
+            rsi: {
+                price_vs_ema20: 95,
+                price_vs_ema50: 90,
                 rsi_min: 25,
+                rsi_max: 70,
+                volume_ratio_min: 0.6,
+                required_conditions: 2
+            },
+            supertrend: {
+                price_vs_ema20: 95,
+                price_vs_ema50: 90,
+                rsi_min: 20,
                 volume_ratio_min: 0.5,
                 required_conditions: 2
             },
             ha_pattern: {
-                price_vs_ema50: 95,
-                rsi_min: 25,
+                price_vs_ema20: 95,
+                price_vs_ema50: 90,
+                rsi_min: 20,
                 volume_ratio_min: 0.5,
                 required_conditions: 2
             }
         };
 
         const filterExplanations = {
-            ma_crossover: `Customize the trend filter thresholds for MA Crossover strategy.`,
-            rsi: `Customize the trend filter thresholds for RSI Oversold strategy.`,
-            supertrend: `Customize the trend filter thresholds for Supertrend strategy.`,
-            ha_pattern: `Customize the trend filter thresholds for Heikin-Ashi Pattern strategy.`
+            ma_crossover: `<p class="text-green-400 font-medium">MA Crossover Filter Settings:</p>
+                          <p>Filters for stocks in strong uptrend with bullish momentum. Requires price above key EMAs, reasonable RSI, adequate volume, and near recent highs.</p>`,
+            rsi: `<p class="text-green-400 font-medium">RSI Oversold Filter Settings:</p>
+                  <p>Filters for oversold stocks that are still in overall uptrend. More lenient on price position but ensures stock isn't in severe downtrend.</p>`,
+            supertrend: `<p class="text-green-400 font-medium">Supertrend Filter Settings:</p>
+                         <p>Filters for stocks with Supertrend buy signals that also show underlying trend strength. Focuses on price above EMA50 and reasonable RSI.</p>`,
+            ha_pattern: `<p class="text-green-400 font-medium">Heikin-Ashi Filter Settings:</p>
+                         <p>Filters for stocks with specific candlestick patterns that also confirm overall uptrend. Ensures pattern occurs in favorable market context.</p>`
         };
 
         function updateUI() {
@@ -321,6 +431,19 @@
             }
         });
 
+        // Close chart button
+        closeChartBtn.addEventListener('click', function() {
+            hideChart();
+        });
+
+        function hideChart() {
+            tvWidgetContainer.style.display = 'none';
+            if (tvWidget) {
+                tvWidget.remove();
+                tvWidget = null;
+            }
+        }
+
         strategySelect.addEventListener('change', updateUI);
         
         runBtn.addEventListener('click', async () => {
@@ -328,7 +451,7 @@
             resultsContent.classList.add('hidden');
             errorMessage.classList.add('hidden');
             loadingSpinner.classList.remove('hidden');
-            tvWidgetContainer.classList.add('hidden');
+            hideChart(); // Hide chart when new scan starts
             runBtn.disabled = true;
             runBtn.textContent = 'Scanning...';
 
@@ -437,7 +560,7 @@
         
         function showTradingViewWidget(ticker) {
             widgetTickerTitle.textContent = `Chart: ${ticker}`;
-            tvWidgetContainer.classList.remove('hidden');
+            tvWidgetContainer.style.display = 'flex';
 
             // Clear previous widget
             if (tvWidget) {
@@ -471,7 +594,9 @@
             tvWidgetContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
 
+        // Initialize UI
         updateUI();
+        hideChart(); // Ensure chart is hidden on page load
     });
 </script>
 </body>

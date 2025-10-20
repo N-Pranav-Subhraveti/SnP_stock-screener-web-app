@@ -97,13 +97,14 @@ def check_uptrend_filter(df: pd.DataFrame, strategy_name: str, filter_params: Di
     price, ema_20, ema_50, rsi = last['Close'], last['EMA_20'], last['EMA_50'], last['RSI_14']
     volume_ratio, price_vs_high = last['Volume_Ratio'], last['Price_vs_High_20']
     
-    # Get filter parameters with defaults
+    # Get filter parameters with defaults - FIXED PARAMETER NAMES
     price_vs_ema20_threshold = filter_params.get('price_vs_ema20', 100) / 100
     price_vs_ema50_threshold = filter_params.get('price_vs_ema50', 100) / 100
     rsi_min = filter_params.get('rsi_min', 35)
     rsi_max = filter_params.get('rsi_max', 80)
     volume_ratio_min = filter_params.get('volume_ratio_min', 0.6)
     price_vs_high_threshold = filter_params.get('price_vs_high', 85) / 100
+    required_conditions = filter_params.get('required_conditions', 3)
     
     if strategy_name == 'rsi':
         conditions = {
@@ -121,7 +122,7 @@ def check_uptrend_filter(df: pd.DataFrame, strategy_name: str, filter_params: Di
             'volume_adequate': volume_ratio > volume_ratio_min,
             'near_highs': price_vs_high > price_vs_high_threshold
         }
-        required_passes = filter_params.get('required_conditions', 3)
+        required_passes = required_conditions
     elif strategy_name in ['ha_pattern', 'supertrend']:
         conditions = {
             'price_above_ema50': price > ema_50 * (filter_params.get('price_vs_ema50', 95) / 100),
@@ -136,7 +137,7 @@ def check_uptrend_filter(df: pd.DataFrame, strategy_name: str, filter_params: Di
             'rsi_reasonable': rsi_min <= rsi <= rsi_max,
             'volume_adequate': volume_ratio > volume_ratio_min
         }
-        required_passes = filter_params.get('required_conditions', 3)
+        required_passes = required_conditions
         
     pass_count = sum(conditions.values())
     if pass_count >= required_passes:
@@ -202,6 +203,9 @@ def process_ticker_data(ticker: str, data: pd.DataFrame, strategy: str, params: 
 def handle_screener_request():
     try:
         req_data = request.get_json()
+        if not req_data:
+            return jsonify({"error": "No JSON data received"}), 400
+            
         params = req_data.get('params', {})
         filter_params = req_data.get('filterParams', {})
         apply_uptrend_filter = req_data.get('applyUptrendFilter', False)
@@ -224,7 +228,7 @@ def handle_screener_request():
                 stock = yf.Ticker(ticker)
                 data = stock.history(period="6mo", auto_adjust=True)  # 6 months for speed
                 
-                if data.empty:
+                if data.empty or len(data) < 50:
                     failed_tickers.append(ticker)
                     continue
 
@@ -232,7 +236,7 @@ def handle_screener_request():
                     ticker, data, 
                     req_data.get('strategy'), 
                     params, 
-                    req_data.get('timeframe'), 
+                    req_data.get('timeframe', 'daily'), 
                     apply_uptrend_filter,
                     filter_params
                 )
@@ -256,6 +260,8 @@ def handle_screener_request():
 
     except Exception as e:
         print(f"[SERVER ERROR] An unexpected error occurred: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": "An internal server error. Please try again later."}), 500
 
 if __name__ == '__main__':
