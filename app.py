@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import pandas as pd
 import yfinance as yf
-from curl_cffi import requests as curl_requests
+import requests
 import pandas_ta as ta
 import io
 import time
@@ -11,7 +11,6 @@ from typing import Dict, Any, Tuple, Optional, List
 # Initialize Flask App
 app = Flask(__name__, static_folder='static')
 CORS(app)
-session = curl_requests.Session(impersonate="chrome110")
 
 # --- Route to serve the frontend ---
 @app.route('/')
@@ -28,7 +27,7 @@ def get_tickers(index_name: str = "S&P 500") -> List[str]:
     try:
         page_info = wiki_pages[index_name]
         headers = {'User-Agent': 'Mozilla/5.0'}
-        response = session.get(page_info['url'], headers=headers)
+        response = requests.get(page_info['url'], headers=headers)
         response.raise_for_status()
         table, found_col = None, None
         for col_name in page_info['possible_cols']:
@@ -46,7 +45,7 @@ def get_tickers(index_name: str = "S&P 500") -> List[str]:
         print(f"Error fetching {index_name} tickers: {e}")
         return []
 
-# --- Individual Strategy Checkers ---
+# --- Individual Strategy Checkers (Optimized) ---
 def check_ma_crossover_signal(df: pd.DataFrame, params: Dict) -> Tuple[bool, Optional[Dict[str, Any]]]:
     short_window, long_window = params.get('short_window', 50), params.get('long_window', 200)
     df[f'SMA{short_window}'] = df['Close'].rolling(window=short_window).mean()
@@ -116,11 +115,7 @@ def check_uptrend_filter(df: pd.DataFrame, strategy_name: str) -> Tuple[bool, Di
 
 def process_ticker_data(ticker: str, data: pd.DataFrame, strategy: str, params: Dict, timeframe: str, apply_uptrend_filter: bool) -> Optional[Dict[str, Any]]:
     try:
-        # Handle MultiIndex from yfinance - convert to regular DataFrame
-        if isinstance(data.columns, pd.MultiIndex):
-            data.columns = data.columns.get_level_values(0)
-        
-        if data.empty or len(data) < 52:
+        if data.empty or len(data) < 20:  # Reduced minimum data requirement for 6-month period
             return None
             
         if timeframe == 'weekly':
@@ -133,7 +128,7 @@ def process_ticker_data(ticker: str, data: pd.DataFrame, strategy: str, params: 
                 'Close': 'last', 
                 'Volume': 'sum'
             }).dropna()
-            if len(data) < 52:
+            if len(data) < 20:  # Reduced for weekly data
                 return None
                 
         strategy_funcs = {
@@ -168,7 +163,7 @@ def process_ticker_data(ticker: str, data: pd.DataFrame, strategy: str, params: 
         print(f"  -> Error processing {ticker}: {e}")
         return None
 
-# --- Main API Endpoint ---
+# --- Main API Endpoint (Optimized for 6-Month Period) ---
 @app.route('/run-screener', methods=['POST'])
 def handle_screener_request():
     try:
@@ -182,19 +177,15 @@ def handle_screener_request():
 
         matching_stocks, failed_tickers = [], []
         
-        # Process all tickers without limitations
-        print(f"Processing all {len(tickers)} tickers...")
+        # Process all tickers with 6-month data
+        print(f"Processing all {len(tickers)} tickers with 6-month data...")
         
         for i, ticker in enumerate(tickers):
             print(f"Processing {ticker} ({i+1}/{len(tickers)})...")
             try:
-                data = yf.download(
-                    ticker, 
-                    period="6mo",
-                    auto_adjust=True, 
-                    session=session, 
-                    progress=False
-                )
+                # Use yf.Ticker approach (more efficient than yf.download for single stocks)
+                stock = yf.Ticker(ticker)
+                data = stock.history(period="6mo", auto_adjust=True)
                 
                 if data.empty:
                     failed_tickers.append(ticker)
@@ -211,7 +202,7 @@ def handle_screener_request():
                     matching_stocks.append(result)
 
                 # Small delay to be gentle on APIs
-                time.sleep(0.05)
+                time.sleep(0.02)  # Reduced delay
                 
             except Exception as e:
                 print(f"  -> Failed to download or process {ticker}: {e}")
@@ -230,7 +221,4 @@ def handle_screener_request():
         return jsonify({"error": "An internal server error. Please try again later."}), 500
 
 if __name__ == '__main__':
-
     app.run(debug=True)
-
-
