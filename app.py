@@ -70,9 +70,26 @@ def check_supertrend_signal(df: pd.DataFrame, params: Dict) -> Tuple[bool, Optio
     length, multiplier = params.get('supertrend_length', 7), params.get('supertrend_multiplier', 3.0)
     df.ta.supertrend(length=length, multiplier=multiplier, append=True)
     df.dropna(inplace=True)
-    if df.empty or f'SUPERTd_{length}_{multiplier}' not in df.columns: return False, None
-    if df.iloc[-1][f'SUPERTd_{length}_{multiplier}'] == 1:
-        return True, {"Supertrend": f"{df.iloc[-1][f'SUPERT_{length}_{multiplier}']:.2f}", "Direction": "Up"}
+    
+    # Get the supertrend column names
+    supertrend_col = f'SUPERT_{length}_{multiplier}'
+    supertrend_dir_col = f'SUPERTd_{length}_{multiplier}'
+    
+    if df.empty or supertrend_col not in df.columns:
+        return False, None
+    
+    last_row = df.iloc[-1]
+    current_close = last_row['Close']
+    current_supertrend = last_row[supertrend_col]
+    
+    # Check if closing price is above supertrend line
+    if current_close > current_supertrend:
+        return True, {
+            "Supertrend": f"{current_supertrend:.2f}", 
+            "Close": f"{current_close:.2f}",
+            "Position": "Above",
+            "Distance %": f"{(current_close - current_supertrend) / current_supertrend * 100:.2f}%"
+        }
     return False, None
 
 def filter_by_ha_pattern(df: pd.DataFrame, params: Dict) -> Tuple[bool, Optional[Dict[str, Any]]]:
