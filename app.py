@@ -45,109 +45,250 @@ def get_tickers(index_name: str = "S&P 500") -> List[str]:
         print(f"Error fetching {index_name} tickers: {e}")
         return []
 
-# --- Individual Strategy Checkers (Optimized) ---
+# --- Individual Strategy Checkers (Fixed) ---
 def check_ma_crossover_signal(df: pd.DataFrame, params: Dict) -> Tuple[bool, Optional[Dict[str, Any]]]:
-    short_window, long_window = params.get('short_window', 50), params.get('long_window', 200)
-    df[f'SMA{short_window}'] = df['Close'].rolling(window=short_window).mean()
-    df[f'SMA{long_window}'] = df['Close'].rolling(window=long_window).mean()
-    df.dropna(inplace=True)
-    if len(df) < 2: return False, None
-    last, prev = df.iloc[-1], df.iloc[-2]
-    if prev[f'SMA{short_window}'] < prev[f'SMA{long_window}'] and last[f'SMA{short_window}'] > last[f'SMA{long_window}']:
-        return True, {f"SMA{short_window}": f"{last[f'SMA{short_window}']:.2f}", f"SMA{long_window}": f"{last[f'SMA{long_window}']:.2f}"}
-    return False, None
+    try:
+        short_window = params.get('short_window', 50)
+        long_window = params.get('long_window', 200)
+        
+        # Calculate SMAs
+        df['SMA_short'] = df['Close'].rolling(window=short_window).mean()
+        df['SMA_long'] = df['Close'].rolling(window=long_window).mean()
+        
+        # Remove NaN values
+        df_clean = df.dropna(subset=['SMA_short', 'SMA_long'])
+        
+        if len(df_clean) < 2:
+            return False, None
+            
+        # Check for crossover
+        current_row = df_clean.iloc[-1]
+        previous_row = df_clean.iloc[-2]
+        
+        # Golden cross: short MA crosses above long MA
+        if (previous_row['SMA_short'] <= previous_row['SMA_long'] and 
+            current_row['SMA_short'] > current_row['SMA_long']):
+            return True, {
+                f"SMA{short_window}": f"{current_row['SMA_short']:.2f}",
+                f"SMA{long_window}": f"{current_row['SMA_long']:.2f}",
+                "Signal": "Golden Cross"
+            }
+            
+        return False, None
+        
+    except Exception as e:
+        print(f"Error in MA crossover check: {e}")
+        return False, None
 
 def check_rsi_signal(df: pd.DataFrame, params: Dict) -> Tuple[bool, Optional[Dict[str, Any]]]:
-    length, threshold = params.get('rsi_length', 14), params.get('rsi_threshold', 30)
-    df.ta.rsi(length=length, append=True)
-    df.dropna(inplace=True)
-    if df.empty: return False, None
-    last_rsi = df.iloc[-1][f'RSI_{length}']
-    if last_rsi < threshold: return True, {"RSI": f"{last_rsi:.2f}"}
-    return False, None
+    try:
+        length = params.get('rsi_length', 14)
+        threshold = params.get('rsi_threshold', 30)
+        
+        # Calculate RSI
+        df['RSI'] = ta.rsi(df['Close'], length=length)
+        df_clean = df.dropna(subset=['RSI'])
+        
+        if df_clean.empty:
+            return False, None
+            
+        current_rsi = df_clean.iloc[-1]['RSI']
+        
+        # Check if RSI is below oversold threshold
+        if current_rsi < threshold:
+            return True, {
+                "RSI": f"{current_rsi:.2f}",
+                "Signal": "Oversold"
+            }
+            
+        return False, None
+        
+    except Exception as e:
+        print(f"Error in RSI check: {e}")
+        return False, None
 
 def check_supertrend_signal(df: pd.DataFrame, params: Dict) -> Tuple[bool, Optional[Dict[str, Any]]]:
-    length, multiplier = params.get('supertrend_length', 7), params.get('supertrend_multiplier', 3.0)
-    df.ta.supertrend(length=length, multiplier=multiplier, append=True)
-    df.dropna(inplace=True)
-    
-    # Get the supertrend column names
-    supertrend_col = f'SUPERT_{length}_{multiplier}'
-    supertrend_dir_col = f'SUPERTd_{length}_{multiplier}'
-    
-    if df.empty or supertrend_col not in df.columns:
+    try:
+        length = params.get('supertrend_length', 7)
+        multiplier = params.get('supertrend_multiplier', 3.0)
+        
+        # Calculate supertrend
+        supertrend_df = ta.supertrend(df['High'], df['Low'], df['Close'], length=length, multiplier=multiplier)
+        
+        # Merge with original dataframe
+        df = pd.concat([df, supertrend_df], axis=1)
+        
+        # Get the supertrend column names
+        supertrend_col = f'SUPERT_{length}_{multiplier}'
+        supertrend_dir_col = f'SUPERTd_{length}_{multiplier}'
+        
+        df_clean = df.dropna(subset=[supertrend_col, supertrend_dir_col])
+        
+        if df_clean.empty:
+            return False, None
+            
+        current_row = df_clean.iloc[-1]
+        current_close = current_row['Close']
+        current_supertrend = current_row[supertrend_col]
+        current_direction = current_row[supertrend_dir_col]
+        
+        # Check if price is above supertrend AND supertrend direction is up
+        if current_close > current_supertrend and current_direction == 1:
+            return True, {
+                "Supertrend": f"{current_supertrend:.2f}",
+                "Close": f"{current_close:.2f}",
+                "Position": "Above",
+                "Direction": "Up",
+                "Distance %": f"{(current_close - current_supertrend) / current_supertrend * 100:.2f}%"
+            }
+            
         return False, None
-    
-    last_row = df.iloc[-1]
-    current_close = last_row['Close']
-    current_supertrend = last_row[supertrend_col]
-    
-    # Check if closing price is above supertrend line
-    if current_close > current_supertrend:
-        return True, {
-            "Supertrend": f"{current_supertrend:.2f}", 
-            "Close": f"{current_close:.2f}",
-            "Position": "Above",
-            "Distance %": f"{(current_close - current_supertrend) / current_supertrend * 100:.2f}%"
-        }
-    return False, None
+        
+    except Exception as e:
+        print(f"Error in supertrend check: {e}")
+        return False, None
 
 def filter_by_ha_pattern(df: pd.DataFrame, params: Dict) -> Tuple[bool, Optional[Dict[str, Any]]]:
-    pattern = params.get('pattern', 'RRGG')
-    df.ta.ha(append=True)
-    df.dropna(inplace=True)
-    if len(df) < len(pattern): return False, None
-    latest_candles = df.iloc[-len(pattern):]
-    for i in range(len(pattern)):
-        actual_color = 'G' if latest_candles.iloc[i]['HA_close'] > latest_candles.iloc[i]['HA_open'] else 'R'
-        if actual_color != pattern[i].upper(): return False, None
-    return True, {"Pattern": pattern}
+    try:
+        pattern = params.get('pattern', 'RRGG')
+        
+        # Calculate Heikin-Ashi
+        ha_df = ta.ha(df['Open'], df['High'], df['Low'], df['Close'])
+        df = pd.concat([df, ha_df], axis=1)
+        
+        df_clean = df.dropna(subset=['HA_close', 'HA_open'])
+        
+        if len(df_clean) < len(pattern):
+            return False, None
+            
+        # Check the pattern
+        latest_candles = df_clean.iloc[-len(pattern):]
+        
+        for i in range(len(pattern)):
+            candle = latest_candles.iloc[i]
+            actual_color = 'G' if candle['HA_close'] > candle['HA_open'] else 'R'
+            expected_color = pattern[i].upper()
+            
+            if actual_color != expected_color:
+                return False, None
+                
+        return True, {
+            "Pattern": pattern,
+            "Signal": f"Heikin-Ashi {pattern} pattern detected"
+        }
+        
+    except Exception as e:
+        print(f"Error in HA pattern check: {e}")
+        return False, None
 
 def check_uptrend_filter(df: pd.DataFrame, strategy_name: str) -> Tuple[bool, Dict[str, Any]]:
-    df['EMA_20'], df['EMA_50'] = ta.ema(df['Close'], length=20), ta.ema(df['Close'], length=50)
-    df.ta.rsi(length=14, append=True)
-    df['Volume_Ratio'] = df['Volume'] / df['Volume'].rolling(window=20).mean()
-    df['Price_vs_High_20'] = df['Close'] / df['High'].rolling(window=20).max()
-    df.dropna(inplace=True)
-    if df.empty: return False, {}
-    last = df.iloc[-1]
-    price, ema_20, ema_50, rsi = last['Close'], last['EMA_20'], last['EMA_50'], last['RSI_14']
-    volume_ratio, price_vs_high = last['Volume_Ratio'], last['Price_vs_High_20']
-    if strategy_name == 'rsi':
-        conditions = {'price_above_ema20': price>ema_20*0.98, 'price_above_ema50': price>ema_50*0.97, 'rsi_reasonable': 30<=rsi<=75, 'volume_adequate': volume_ratio>0.7}
-        required_passes = 3
-    elif strategy_name == 'ma_crossover':
-        conditions = {'price_above_ema20': price>ema_20, 'price_above_ema50': price>ema_50, 'rsi_reasonable': 35<=rsi<=80, 'volume_adequate': volume_ratio>0.6, 'near_highs': price_vs_high>0.85}
-        required_passes = 3
-    elif strategy_name in ['ha_pattern', 'supertrend']:
-        conditions = {'price_above_ema50': price>ema_50*0.95, 'rsi_not_extreme': rsi>25, 'volume_adequate': volume_ratio>0.5}
-        required_passes = 2
-    else:
-        conditions = {'price_above_ema20': price>ema_20*0.98, 'price_above_ema50': price>ema_50, 'rsi_reasonable': 30<=rsi<=80, 'volume_adequate': volume_ratio > 0.6}
-        required_passes = 3
-    pass_count = sum(conditions.values())
-    if pass_count >= required_passes:
-        return True, {"Trend Strength": "Strong" if pass_count == len(conditions) else "Moderate"}
-    return False, {"Trend Strength": "Weak"}
+    try:
+        # Calculate technical indicators for trend filtering
+        df['EMA_20'] = ta.ema(df['Close'], length=20)
+        df['EMA_50'] = ta.ema(df['Close'], length=50)
+        df['RSI_14'] = ta.rsi(df['Close'], length=14)
+        df['Volume_Ratio'] = df['Volume'] / df['Volume'].rolling(window=20).mean()
+        df['Price_vs_High_20'] = df['Close'] / df['High'].rolling(window=20).max()
+        
+        df_clean = df.dropna()
+        
+        if df_clean.empty:
+            return False, {"Error": "Insufficient data for trend filter"}
+            
+        last = df_clean.iloc[-1]
+        price = last['Close']
+        ema_20 = last['EMA_20']
+        ema_50 = last['EMA_50']
+        rsi = last['RSI_14']
+        volume_ratio = last['Volume_Ratio']
+        price_vs_high = last['Price_vs_High_20']
+        
+        # Define conditions based on strategy
+        if strategy_name == 'rsi':
+            conditions = {
+                'price_above_ema20': price > ema_20 * 0.98,
+                'price_above_ema50': price > ema_50 * 0.97,
+                'rsi_reasonable': 30 <= rsi <= 75,
+                'volume_adequate': volume_ratio > 0.7
+            }
+            required_passes = 3
+            
+        elif strategy_name == 'ma_crossover':
+            conditions = {
+                'price_above_ema20': price > ema_20,
+                'price_above_ema50': price > ema_50,
+                'rsi_reasonable': 35 <= rsi <= 80,
+                'volume_adequate': volume_ratio > 0.6,
+                'near_highs': price_vs_high > 0.85
+            }
+            required_passes = 3
+            
+        elif strategy_name in ['ha_pattern', 'supertrend']:
+            conditions = {
+                'price_above_ema50': price > ema_50 * 0.95,
+                'rsi_not_extreme': rsi > 25,
+                'volume_adequate': volume_ratio > 0.5
+            }
+            required_passes = 2
+            
+        else:
+            conditions = {
+                'price_above_ema20': price > ema_20 * 0.98,
+                'price_above_ema50': price > ema_50,
+                'rsi_reasonable': 30 <= rsi <= 80,
+                'volume_adequate': volume_ratio > 0.6
+            }
+            required_passes = 3
+            
+        pass_count = sum(conditions.values())
+        
+        if pass_count >= required_passes:
+            return True, {
+                "Trend Strength": "Strong" if pass_count == len(conditions) else "Moderate",
+                "Passed Conditions": f"{pass_count}/{len(conditions)}"
+            }
+            
+        return False, {
+            "Trend Strength": "Weak",
+            "Passed Conditions": f"{pass_count}/{len(conditions)}"
+        }
+        
+    except Exception as e:
+        print(f"Error in uptrend filter: {e}")
+        return False, {"Error": str(e)}
 
 def process_ticker_data(ticker: str, data: pd.DataFrame, strategy: str, params: Dict, timeframe: str, apply_uptrend_filter: bool) -> Optional[Dict[str, Any]]:
     try:
-        if data.empty or len(data) < 20:  # Reduced minimum data requirement for 6-month period
+        # Debug: Print data info for specific tickers
+        if ticker in ['GILD', 'AAPL', 'MSFT']:
+            print(f"DEBUG {ticker}: Data length: {len(data)}, Columns: {list(data.columns)}")
+        
+        if data.empty or len(data) < 50:  # Increased minimum data requirement
+            if ticker in ['GILD', 'AAPL', 'MSFT']:
+                print(f"DEBUG {ticker}: Insufficient data - {len(data)} rows")
             return None
             
+        # Handle timeframe resampling
         if timeframe == 'weekly':
             if not isinstance(data.index, pd.DatetimeIndex):
                 data.index = pd.to_datetime(data.index)
-            data = data.resample('W').agg({
+            weekly_data = data.resample('W').agg({
                 'Open': 'first', 
                 'High': 'max', 
                 'Low': 'min', 
                 'Close': 'last', 
                 'Volume': 'sum'
             }).dropna()
-            if len(data) < 20:  # Reduced for weekly data
+            if len(weekly_data) < 20:
                 return None
-                
+            data = weekly_data
+        
+        # Ensure we have the required columns
+        required_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
+        if not all(col in data.columns for col in required_columns):
+            print(f"Missing required columns for {ticker}: {list(data.columns)}")
+            return None
+            
         strategy_funcs = {
             'ma_crossover': check_ma_crossover_signal,
             'rsi': check_rsi_signal,
@@ -158,29 +299,48 @@ def process_ticker_data(ticker: str, data: pd.DataFrame, strategy: str, params: 
         if strategy not in strategy_funcs:
             return None
             
+        # Apply strategy
         is_signal, signal_data = strategy_funcs[strategy](data.copy(), params)
+        
+        if ticker in ['GILD', 'AAPL', 'MSFT']:
+            print(f"DEBUG {ticker} {strategy}: Signal={is_signal}, Data={signal_data}")
+        
         if not is_signal:
             return None
             
+        # Apply uptrend filter if enabled
         uptrend_data = {}
         if apply_uptrend_filter:
             is_uptrend, uptrend_data = check_uptrend_filter(data.copy(), strategy)
             if not is_uptrend:
+                if ticker in ['GILD', 'AAPL', 'MSFT']:
+                    print(f"DEBUG {ticker}: Uptrend filter failed - {uptrend_data}")
                 return None
-                
-        result = {'Ticker': ticker, 'Close': f"${data.iloc[-1]['Close']:.2f}"}
+        
+        # Build result
+        result = {
+            'Ticker': ticker, 
+            'Close': f"${data.iloc[-1]['Close']:.2f}",
+            'Strategy': strategy.replace('_', ' ').title()
+        }
+        
         if signal_data:
             result.update(signal_data)
         if uptrend_data:
             result.update(uptrend_data)
             
+        if ticker in ['GILD', 'AAPL', 'MSFT']:
+            print(f"DEBUG {ticker}: FINAL RESULT - {result}")
+            
         return result
         
     except Exception as e:
-        print(f"  -> Error processing {ticker}: {e}")
+        print(f"  -> Error processing {ticker} ({strategy}): {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
-# --- Main API Endpoint (Optimized for 6-Month Period) ---
+# --- Main API Endpoint ---
 @app.route('/run-screener', methods=['POST'])
 def handle_screener_request():
     try:
@@ -194,15 +354,15 @@ def handle_screener_request():
 
         matching_stocks, failed_tickers = [], []
         
-        # Process all tickers with 6-month data
-        print(f"Processing all {len(tickers)} tickers with 6-month data...")
+        # Process all tickers
+        print(f"Processing all {len(tickers)} tickers...")
         
         for i, ticker in enumerate(tickers):
             print(f"Processing {ticker} ({i+1}/{len(tickers)})...")
             try:
-                # Use yf.Ticker approach (more efficient than yf.download for single stocks)
+                # Use yf.Ticker for more reliable data
                 stock = yf.Ticker(ticker)
-                data = stock.history(period="6mo", auto_adjust=True)
+                data = stock.history(period="1y", auto_adjust=True)  # Increased to 1 year for better indicators
                 
                 if data.empty:
                     failed_tickers.append(ticker)
@@ -219,7 +379,7 @@ def handle_screener_request():
                     matching_stocks.append(result)
 
                 # Small delay to be gentle on APIs
-                time.sleep(0.02)  # Reduced delay
+                time.sleep(0.05)
                 
             except Exception as e:
                 print(f"  -> Failed to download or process {ticker}: {e}")
