@@ -190,7 +190,7 @@ def handle_screener_request():
             try:
                 data = yf.download(
                     ticker, 
-                    period="6M",
+                    period="6mo",
                     auto_adjust=True, 
                     session=session, 
                     progress=False
@@ -232,4 +232,5 @@ def handle_screener_request():
 if __name__ == '__main__':
 
     app.run(debug=True)
+
 
